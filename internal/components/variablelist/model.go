@@ -6,34 +6,86 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/andersonjoseph/drill/internal/messages"
+	"github.com/andersonjoseph/drill/internal/types"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-var paginatorStyleSelected lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
-var paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
+const (
+	listWidth  int = 30
+	listHeight int = 4
+)
+
+const (
+    colorBlack  = lipgloss.Color("0")
+    colorWhite  = lipgloss.Color("15")
+    colorGrey   = lipgloss.Color("7")
+    colorPurple = lipgloss.Color("5")
+    colorGreen  = lipgloss.Color("2")
+)
+
+var (
+	paginatorStyleSelected lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
+	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
+)
+
+type variableItem struct {
+	variable types.Variable
+}
+
+func (i variableItem) FilterValue() string {return ""}
+
+func variablesToListItems(vars []types.Variable) []list.Item {
+	items := make([]list.Item, len(vars))
+
+	for i := range vars {
+		items[i] = variableItem{
+			variable: vars[i],
+		}
+	}
+
+	return items
+}
+
+func renderVariableWithStyle(v types.Variable, nameStyle, valueStyle lipgloss.Style) string {
+	name := nameStyle.Render(v.Name + ": ")
+
+	value := valueStyle.
+		Width(listWidth - lipgloss.Width(name)).
+		Render(v.Value)
+
+	return name + value
+}
+
+func renderVariable(v types.Variable) string {
+	nameStyle := lipgloss.NewStyle().Foreground(colorWhite)
+	valueStyle := lipgloss.NewStyle().Foreground(colorGrey)
+	return renderVariableWithStyle(v, nameStyle, valueStyle)
+}
+
+func renderSelectedVariable(v types.Variable) string {
+	nameStyle := lipgloss.NewStyle().Foreground(colorPurple).Bold(true)
+	valueStyle := lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
+	return renderVariableWithStyle(v,nameStyle, valueStyle)
+}
 
 type model struct {
 	list      list.Model
+	variables []types.Variable
 	title     string
 	id        int
 	focusedId int
 }
 
-func New(title string, id int, vars []Variable) model {
+func New(title string, id int) model {
 	m := model{}
 
-	items := make([]list.Item, len(vars))
-
-	for i := range vars {
-		items[i] = vars[i]
-	}
-
-	l := list.New(items, listDelegate{
-		listId:    id,
-		focusedId: m.focusedId,
+	l := list.New([]list.Item{}, listDelegate{
+		listID:    id,
+		focusedID: m.focusedId,
 	}, listWidth, listHeight)
 	l.SetShowHelp(false)
 	l.SetShowFilter(false)
@@ -41,8 +93,7 @@ func New(title string, id int, vars []Variable) model {
 	l.SetShowStatusBar(false)
 	l.Styles.PaginationStyle = paginatorStyleDefault
 	l.Styles.NoItems = lipgloss.NewStyle().Width(listWidth)
-
-	l.Paginator = setupPagination(len(items))
+	l.Paginator = setupPagination(0)
 
 	m.id = id
 	m.title = title
@@ -69,15 +120,19 @@ func (m model) Init() tea.Cmd { return nil }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		i, err := strconv.Atoi(msg.String())
-		if err == nil {
+		if i, err := strconv.Atoi(msg.String()); err == nil {
 			m.focusedId = i
 		}
+
+	case messages.NewVariables:
+		m.variables = msg
+		m.list.SetItems(variablesToListItems(msg))
 	}
 
 	if m.focusedId != m.id {
 		m.list.Styles.PaginationStyle = paginatorStyleDefault
 		return m, nil
+
 	}
 
 	m.list.Styles.PaginationStyle = paginatorStyleSelected
@@ -127,21 +182,21 @@ func (m model) View() string {
 }
 
 type listDelegate struct {
-	listId    int
-	focusedId int
+	listID    int
+	focusedID int
 }
 
 func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	variable, ok := item.(Variable)
+	varItem, ok := item.(variableItem)
 	if !ok {
 		return
 	}
 
 	var str string
 	if m.Index() == index {
-		str = variable.RenderSelectedVariable()
+		str = renderSelectedVariable(varItem.variable)
 	} else {
-		str = variable.RenderVariable()
+		str = renderVariable(varItem.variable)
 	}
 
 	fmt.Fprint(w, str)
