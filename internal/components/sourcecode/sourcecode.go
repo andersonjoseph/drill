@@ -1,7 +1,6 @@
 package sourcecode
 
 import (
-
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -17,7 +16,7 @@ func New(content string) model {
 	}
 }
 
-func (m model) Init() tea.Cmd {return nil}
+func (m model) Init() tea.Cmd { return nil }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.NewCodeContent:

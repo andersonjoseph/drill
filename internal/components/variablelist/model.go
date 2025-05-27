@@ -20,23 +20,23 @@ const (
 )
 
 const (
-    colorBlack  = lipgloss.Color("0")
-    colorWhite  = lipgloss.Color("15")
-    colorGrey   = lipgloss.Color("7")
-    colorPurple = lipgloss.Color("5")
-    colorGreen  = lipgloss.Color("2")
+	colorBlack  = lipgloss.Color("0")
+	colorWhite  = lipgloss.Color("15")
+	colorGrey   = lipgloss.Color("7")
+	colorPurple = lipgloss.Color("5")
+	colorGreen  = lipgloss.Color("2")
 )
 
 var (
 	paginatorStyleSelected lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
-	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
+	paginatorStyleDefault  lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
 )
 
 type variableItem struct {
 	variable types.Variable
 }
 
-func (i variableItem) FilterValue() string {return ""}
+func (i variableItem) FilterValue() string { return "" }
 
 func variablesToListItems(vars []types.Variable) []list.Item {
 	items := make([]list.Item, len(vars))
@@ -69,7 +69,7 @@ func renderVariable(v types.Variable) string {
 func renderSelectedVariable(v types.Variable) string {
 	nameStyle := lipgloss.NewStyle().Foreground(colorPurple).Bold(true)
 	valueStyle := lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
-	return renderVariableWithStyle(v,nameStyle, valueStyle)
+	return renderVariableWithStyle(v, nameStyle, valueStyle)
 }
 
 type model struct {
@@ -104,16 +104,16 @@ func New(title string, id int) model {
 }
 
 func setupPagination(totalItems int) paginator.Model {
-    p := paginator.New()
-    p.Type = paginator.Arabic
-    p.PerPage = 5
-    p.SetTotalPages(totalItems)
-    p.ArabicFormat = lipgloss.NewStyle().
-        Margin(0).Padding(0).
-        Align(lipgloss.Right).
-        Width(listWidth).
-        Render("%d of %d ")
-    return p
+	p := paginator.New()
+	p.Type = paginator.Arabic
+	p.PerPage = 5
+	p.SetTotalPages(totalItems)
+	p.ArabicFormat = lipgloss.NewStyle().
+		Margin(0).Padding(0).
+		Align(lipgloss.Right).
+		Width(listWidth).
+		Render("%d of %d ")
+	return p
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -202,6 +202,6 @@ func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	fmt.Fprint(w, str)
 }
 
-func (d listDelegate) Height() int  { return 1 }
-func (d listDelegate) Spacing() int { return 0 }
+func (d listDelegate) Height() int                               { return 1 }
+func (d listDelegate) Spacing() int                              { return 0 }
 func (d listDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }

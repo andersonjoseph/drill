@@ -1,0 +1,101 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when using -o
+*.out
+
+# Local development tools and binaries
+# If you use a local directory for tools (e.g., ./bin or ./tools/bin)
+/bin/
+/tools/bin/
+
+# Dependency directories (if you still use them, though Go Modules are preferred)
+# vendor/
+
+# Environment configuration files
+.env
+.env.*
+!.env.example # Often good to commit an example env file
+
+# IDE and editor specific files
+# JetBrains (GoLand, IntelliJ)
+.idea/
+*.iws
+*.iml
+
+# VS Code
+.vscode/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*~
+*.swp
+*.swo
+
+# Emacs
+*~
+\#*\#
+/.emacs.d/
+
+# Mac OS specific
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Go Module files - typically you DO want to commit go.mod and go.sum
+# However, if you have a very specific workflow where these are generated
+# and you don't want to commit them, you might uncomment.
+# Generally, KEEP go.mod and go.sum versioned.
+# go.mod
+# go.sum
+
+# Go tools module files (if using go get -tool -modfile=go.tool.mod)
+# These define your tool dependencies, so usually you DO want to commit them.
+# go.tool.mod
+# go.tool.sum
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage output
+coverage.html
+coverage.txt
+coverage.out # Also used by `go tool cover -o`
+
+# Build output or archives
+dist/
+build/
+target/
+*.tar
+*.gz
+*.zip
+*.rar
+
+# Go workspace file (rarely used with modules)
+# go.work
+# go.work.sum
+
+# Debugger files (e.g., Delve)
+__debug_bin

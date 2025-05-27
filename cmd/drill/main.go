@@ -25,10 +25,10 @@ type sidebar struct {
 }
 
 type model struct {
-	sidebar     sidebar
-	code tea.Model
+	sidebar      sidebar
+	code         tea.Model
 	currentIndex int
-	debugger debugger
+	debugger     debugger
 }
 
 func (m model) Init() tea.Cmd {
@@ -57,7 +57,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			localVariables := m.debugger.getLocalVariables()
 
-			m.sidebar.localVariables, cmd =  m.sidebar.localVariables.Update(messages.NewVariables(localVariables))
+			m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.NewVariables(localVariables))
 			return m, cmd
 		}
 
@@ -69,7 +69,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			localVariables := m.debugger.getLocalVariables()
 
-			m.sidebar.localVariables, cmd =  m.sidebar.localVariables.Update(messages.NewVariables(localVariables))
+			m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.NewVariables(localVariables))
 			return m, cmd
 		}
 	}
@@ -89,7 +89,7 @@ func (m model) View() string {
 
 type debugger struct {
 	client *rpc2.RPCClient
-	ready chan string
+	ready  chan string
 }
 
 func New() (debugger, error) {
@@ -99,8 +99,7 @@ func New() (debugger, error) {
 	d.startProcess()
 
 	select {
-	case addr := <- d.ready:
-		fmt.Printf("addr: %v\n", addr)
+	case addr := <-d.ready:
 		d.client = rpc2.NewClient(addr)
 	case <-time.After(time.Second * 10):
 		return debugger{}, errors.New("timeout")
@@ -110,11 +109,11 @@ func New() (debugger, error) {
 }
 
 func (d debugger) startProcess() {
-    cmd := exec.Command("dlv", "debug", "--headless")
+	cmd := exec.Command("dlv", "debug", "--headless", "./cmd/test")
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("Error getting local variables:", err)
+		fmt.Println("Error creating stdout pipe", err)
 		os.Exit(1)
 	}
 
@@ -151,7 +150,7 @@ func (d debugger) getCurrentFileContent() string {
 	scanner := bufio.NewScanner(f)
 	currentLine := 0
 	startLine := max(0, breakpointLine-offset)
-	endLine := breakpointLine+offset
+	endLine := breakpointLine + offset
 
 	lines := strings.Builder{}
 
@@ -179,8 +178,8 @@ func (d debugger) getLocalVariables() []types.Variable {
 
 	vars, err := d.client.ListLocalVariables(
 		api.EvalScope{
-		GoroutineID: state.CurrentThread.GoroutineID,
-	}, api.LoadConfig{})
+			GoroutineID: state.CurrentThread.GoroutineID,
+		}, api.LoadConfig{})
 
 	if err != nil {
 		fmt.Println("Error getting local variables:", err)
@@ -191,7 +190,7 @@ func (d debugger) getLocalVariables() []types.Variable {
 
 	for i := range vars {
 		res[i] = types.Variable{
-			Name: vars[i].Name,
+			Name:  vars[i].Name,
 			Value: vars[i].Value,
 		}
 	}
@@ -202,12 +201,12 @@ func (d debugger) getLocalVariables() []types.Variable {
 func main() {
 	debugger, err := New()
 	if err != nil {
-		fmt.Println("Error getting local variables:", err)
+		fmt.Println("Error creating debugger", err)
 		os.Exit(1)
 	}
 	defer debugger.client.Disconnect(false)
 
-	m := model {
+	m := model{
 		debugger: debugger,
 		sidebar: sidebar{
 			localVariables: variablelist.New("Local Variables", 1),
