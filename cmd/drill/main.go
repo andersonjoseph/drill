@@ -113,11 +113,19 @@ func (m *model) Log(format string, v any) {
 type debugger struct {
 	client *rpc2.RPCClient
 	ready  chan string
+	lcfg   api.LoadConfig
 }
 
 func New() (debugger, error) {
 	d := debugger{
 		ready: make(chan string),
+		lcfg: api.LoadConfig{
+			FollowPointers:     true,
+			MaxVariableRecurse: 4,
+			MaxStringLen:       64,
+			MaxArrayValues:     16,
+			MaxStructFields:    16,
+		},
 	}
 	d.startProcess()
 
@@ -201,23 +209,22 @@ func (d debugger) getLocalVariables() []types.Variable {
 	vars, err := d.client.ListLocalVariables(
 		api.EvalScope{
 			GoroutineID: state.CurrentThread.GoroutineID,
-		}, api.LoadConfig{})
+		}, d.lcfg)
 
 	if err != nil {
 		fmt.Println("Error getting local variables:", err)
 		os.Exit(1)
 	}
 
-	res := make([]types.Variable, len(vars))
-
+	localVariables := make([]types.Variable, len(vars))
 	for i := range vars {
-		res[i] = types.Variable{
+		localVariables[i] = types.Variable{
 			Name:  vars[i].Name,
-			Value: vars[i].Value,
+			Value: vars[i].SinglelineString(),
 		}
 	}
 
-	return res
+	return localVariables
 }
 
 func main() {

@@ -98,7 +98,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		windowWidth := msg.Width
 		if windowWidth >= windowWidth/3 {
-			m.width = 30
+			m.width = 50
 		} else if windowWidth <= 5 {
 			m.width = 5
 		} else {
