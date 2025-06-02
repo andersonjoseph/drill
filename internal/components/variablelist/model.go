@@ -22,70 +22,44 @@ const (
 	colorGreen  = lipgloss.Color("2")
 )
 
-var (
-	paginatorStyleSelected lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
-	paginatorStyleDefault  lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
-)
-
-type variableItem struct {
-	variable types.Variable
+type variableStyle struct {
+	name  lipgloss.Style
+	value lipgloss.Style
 }
 
-func (i variableItem) FilterValue() string { return "" }
+var (
+	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(colorGrey)
 
-func variablesToListItems(vars []types.Variable) []list.Item {
-	items := make([]list.Item, len(vars))
+	paginatorStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
+	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
 
-	for i := range vars {
-		items[i] = variableItem{
-			variable: vars[i],
-		}
+	variableStyleDefault variableStyle = variableStyle{
+		name:  lipgloss.NewStyle().Foreground(colorGrey),
+		value: lipgloss.NewStyle().Foreground(colorGrey),
+	}
+	variableFocusedStyle variableStyle = variableStyle{
+		name:  lipgloss.NewStyle().Foreground(colorPurple).Bold(true),
+		value: lipgloss.NewStyle().Foreground(colorGreen).Bold(true),
 	}
 
-	return items
-}
-
-func renderVariableWithStyle(v types.Variable, nameStyle, valueStyle lipgloss.Style, width int) string {
-	name := nameStyle.Render(v.Name + ": ")
-	value := valueStyle.
-		Render(v.Value)
-
-	lipgloss.Width(name + value)
-
-	return lipgloss.NewStyle().
-		Width(width).
-		Render(name + value)
-}
-
-func renderVariable(v types.Variable, width int) string {
-	nameStyle := lipgloss.NewStyle().Foreground(colorWhite)
-	valueStyle := lipgloss.NewStyle().Foreground(colorGrey)
-	return renderVariableWithStyle(v, nameStyle, valueStyle, width)
-}
-
-func renderSelectedVariable(v types.Variable, width int) string {
-	nameStyle := lipgloss.NewStyle().Foreground(colorPurple).Bold(true)
-	valueStyle := lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
-	return renderVariableWithStyle(v, nameStyle, valueStyle, width)
-}
+	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGreen))
+	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
+)
 
 type model struct {
-	list      list.Model
-	variables []types.Variable
-	title     string
 	id        int
-	focusedId int
+	title     string
+	isFocused bool
 	width     int
 	height    int
+	list      list.Model
+	variables []types.Variable
 }
 
 func New(title string, id int) model {
 	m := model{}
 
-	l := list.New([]list.Item{}, listDelegate{
-		listID:    id,
-		focusedID: m.focusedId,
-	}, 0, 0)
+	l := list.New([]list.Item{}, listDelegate{}, 0, 0)
 	l.SetShowHelp(false)
 	l.SetShowFilter(false)
 	l.SetShowTitle(false)
@@ -96,7 +70,7 @@ func New(title string, id int) model {
 
 	m.id = id
 	m.title = title
-	m.focusedId = 1
+	m.isFocused = id == 1
 	m.list = l
 	m.width = 0
 	m.height = 0
@@ -119,6 +93,7 @@ func setupPagination(totalItems int) paginator.Model {
 
 func (m model) Init() tea.Cmd { return nil }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		windowWidth := msg.Width
@@ -130,10 +105,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width = windowWidth
 		}
 		m.list.SetWidth(m.width)
-
-		m.list.Styles.NoItems = lipgloss.NewStyle().Align(lipgloss.Left).Width(
-			m.width,
-		)
+		m.list.Styles.NoItems = noItemsStyle.Width(m.width)
 
 		windowHeight := msg.Height - 20
 		if windowHeight >= 10 {
@@ -148,8 +120,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if i, err := strconv.Atoi(msg.String()); err == nil {
-			m.focusedId = i
+		if id, err := strconv.Atoi(msg.String()); err == nil {
+			m.isFocused = id == m.id
 		}
 
 	case messages.NewVariables:
@@ -157,13 +129,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetItems(variablesToListItems(msg))
 	}
 
-	if m.focusedId != m.id {
+	if !m.isFocused {
 		m.list.Styles.PaginationStyle = paginatorStyleDefault
 		return m, nil
-
 	}
 
-	m.list.Styles.PaginationStyle = paginatorStyleSelected
+	m.list.Styles.PaginationStyle = paginatorStyleFocused
 
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
@@ -171,9 +142,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) renderWithBorder(style lipgloss.Style, title string) string {
+func (m model) View() string {
+	var style lipgloss.Style
+	if m.isFocused {
+		style = listFocusedStyle
+	} else {
+		style = listDefaultStyle
+	}
+
 	width := m.list.Width()
-	titleText := style.Render(title)
+	titleText := style.Render(m.title)
 	titleWidth := lipgloss.Width(titleText)
 
 	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
@@ -192,44 +170,57 @@ func (m model) renderWithBorder(style lipgloss.Style, title string) string {
 	return strings.Join(renderedLines, "\n")
 }
 
-func (m model) renderList() string {
-	return m.renderWithBorder(lipgloss.NewStyle(), fmt.Sprintf(" [%d] %s ", m.id, m.title))
-}
-
-func (m model) renderSelectedList() string {
-	return m.renderWithBorder(lipgloss.NewStyle().Foreground(lipgloss.Color(colorGreen)),
-		fmt.Sprintf(" [%d] %s ", m.id, m.title))
-}
-
-func (m model) View() string {
-	if m.focusedId == m.id {
-		return m.renderSelectedList()
-	}
-
-	return m.renderList()
-}
-
-type listDelegate struct {
-	listID    int
-	focusedID int
-}
+type listDelegate struct{}
 
 func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	varItem, ok := item.(variableItem)
+	listItem, ok := item.(listItem)
 	if !ok {
 		return
 	}
 
-	var str string
-	if m.Index() == index {
-		str = renderSelectedVariable(varItem.variable, m.Width())
-	} else {
-		str = renderVariable(varItem.variable, m.Width())
-	}
-
-	fmt.Fprint(w, str)
+	listItem.isFocused = m.Index() == index
+	fmt.Fprint(w, listItem.Render(m.Width()))
 }
 
 func (d listDelegate) Height() int                               { return 1 }
 func (d listDelegate) Spacing() int                              { return 0 }
 func (d listDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
+
+type listItem struct {
+	variable  types.Variable
+	isFocused bool
+}
+
+func (i listItem) FilterValue() string { return "" }
+
+func (v listItem) Render(width int) string {
+	var nameStyle, valueStyle lipgloss.Style
+
+	if v.isFocused {
+		nameStyle = variableFocusedStyle.name
+		valueStyle = variableFocusedStyle.value
+	} else {
+		nameStyle = variableStyleDefault.name
+		valueStyle = variableStyleDefault.value
+	}
+
+	name := nameStyle.Render(v.variable.Name + ": ")
+	value := valueStyle.
+		Render(v.variable.Value)
+
+	return lipgloss.NewStyle().
+		Width(width).
+		Render(name + value)
+}
+
+func variablesToListItems(vars []types.Variable) []list.Item {
+	items := make([]list.Item, len(vars))
+
+	for i := range vars {
+		items[i] = listItem{
+			variable: vars[i],
+		}
+	}
+
+	return items
+}
