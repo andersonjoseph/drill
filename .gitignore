@@ -99,3 +99,13 @@ target/
 
 # Debugger files (e.g., Delve)
 __debug_bin
+
+# Devenv
+.devenv*
+devenv.local.nix
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
