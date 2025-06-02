@@ -8,6 +8,8 @@ import (
 
 type model struct {
 	content string
+	width   int
+	height  int
 }
 
 func New(content string) model {
@@ -19,6 +21,11 @@ func New(content string) model {
 func (m model) Init() tea.Cmd { return nil }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.height = msg.Height - 3
+		m.width = msg.Width - 34
+		return m, nil
+
 	case messages.NewCodeContent:
 		m.content = string(msg)
 		return m, nil
@@ -28,5 +35,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return lipgloss.NewStyle().Border(lipgloss.NormalBorder()).Width(150).Render(m.content)
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		Height(m.height).
+		Width(m.width).
+		Render(m.content)
 }

@@ -15,11 +15,6 @@ import (
 )
 
 const (
-	listWidth  int = 30
-	listHeight int = 4
-)
-
-const (
 	colorBlack  = lipgloss.Color("0")
 	colorWhite  = lipgloss.Color("15")
 	colorGrey   = lipgloss.Color("7")
@@ -50,26 +45,28 @@ func variablesToListItems(vars []types.Variable) []list.Item {
 	return items
 }
 
-func renderVariableWithStyle(v types.Variable, nameStyle, valueStyle lipgloss.Style) string {
+func renderVariableWithStyle(v types.Variable, nameStyle, valueStyle lipgloss.Style, width int) string {
 	name := nameStyle.Render(v.Name + ": ")
-
 	value := valueStyle.
-		Width(listWidth - lipgloss.Width(name)).
 		Render(v.Value)
 
-	return name + value
+	lipgloss.Width(name + value)
+
+	return lipgloss.NewStyle().
+		Width(width).
+		Render(name + value)
 }
 
-func renderVariable(v types.Variable) string {
+func renderVariable(v types.Variable, width int) string {
 	nameStyle := lipgloss.NewStyle().Foreground(colorWhite)
 	valueStyle := lipgloss.NewStyle().Foreground(colorGrey)
-	return renderVariableWithStyle(v, nameStyle, valueStyle)
+	return renderVariableWithStyle(v, nameStyle, valueStyle, width)
 }
 
-func renderSelectedVariable(v types.Variable) string {
+func renderSelectedVariable(v types.Variable, width int) string {
 	nameStyle := lipgloss.NewStyle().Foreground(colorPurple).Bold(true)
 	valueStyle := lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
-	return renderVariableWithStyle(v, nameStyle, valueStyle)
+	return renderVariableWithStyle(v, nameStyle, valueStyle, width)
 }
 
 type model struct {
@@ -78,6 +75,8 @@ type model struct {
 	title     string
 	id        int
 	focusedId int
+	width     int
+	height    int
 }
 
 func New(title string, id int) model {
@@ -86,19 +85,21 @@ func New(title string, id int) model {
 	l := list.New([]list.Item{}, listDelegate{
 		listID:    id,
 		focusedID: m.focusedId,
-	}, listWidth, listHeight)
+	}, 0, 0)
 	l.SetShowHelp(false)
 	l.SetShowFilter(false)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
 	l.Styles.PaginationStyle = paginatorStyleDefault
-	l.Styles.NoItems = lipgloss.NewStyle().Width(listWidth)
+	l.Styles.NoItems = lipgloss.NewStyle().Width(0)
 	l.Paginator = setupPagination(0)
 
 	m.id = id
 	m.title = title
 	m.focusedId = 1
 	m.list = l
+	m.width = 0
+	m.height = 0
 
 	return m
 }
@@ -111,14 +112,41 @@ func setupPagination(totalItems int) paginator.Model {
 	p.ArabicFormat = lipgloss.NewStyle().
 		Margin(0).Padding(0).
 		Align(lipgloss.Right).
-		Width(listWidth).
 		Render("%d of %d ")
+
 	return p
 }
 
 func (m model) Init() tea.Cmd { return nil }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		windowWidth := msg.Width
+		if windowWidth >= windowWidth/3 {
+			m.width = 30
+		} else if windowWidth <= 5 {
+			m.width = 5
+		} else {
+			m.width = windowWidth
+		}
+		m.list.SetWidth(m.width)
+
+		m.list.Styles.NoItems = lipgloss.NewStyle().Align(lipgloss.Left).Width(
+			m.width,
+		)
+
+		windowHeight := msg.Height - 20
+		if windowHeight >= 10 {
+			m.height = 10
+		} else if windowHeight <= 3 {
+			m.height = 3
+		} else {
+			m.height = windowHeight
+		}
+
+		m.list.SetHeight(m.height)
+		return m, nil
+
 	case tea.KeyMsg:
 		if i, err := strconv.Atoi(msg.String()); err == nil {
 			m.focusedId = i
@@ -148,7 +176,7 @@ func (m model) renderWithBorder(style lipgloss.Style, title string) string {
 	titleText := style.Render(title)
 	titleWidth := lipgloss.Width(titleText)
 
-	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", width-titleWidth)) + style.Render("┐")
+	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
 	bottomBorder := style.Render("└" + strings.Repeat("─", width) + "┘")
 	verticalBorder := style.Render("│")
 
@@ -194,9 +222,9 @@ func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 
 	var str string
 	if m.Index() == index {
-		str = renderSelectedVariable(varItem.variable)
+		str = renderSelectedVariable(varItem.variable, m.Width())
 	} else {
-		str = renderVariable(varItem.variable)
+		str = renderVariable(varItem.variable, m.Width())
 	}
 
 	fmt.Fprint(w, str)

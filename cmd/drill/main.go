@@ -29,6 +29,7 @@ type model struct {
 	code         tea.Model
 	currentIndex int
 	debugger     debugger
+	logs         []string
 }
 
 func (m model) Init() tea.Cmd {
@@ -40,6 +41,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
+		cmds = append(cmds, cmd)
+
+		m.code, cmd = m.code.Update(msg)
+		cmds = append(cmds, cmd)
+
+		return m, tea.Batch(cmds...)
+
 	case tea.KeyMsg:
 		if msg.String() == "q" || msg.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -54,11 +64,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			fileContent := m.debugger.getCurrentFileContent()
 			m.code, cmd = m.code.Update(messages.NewCodeContent(fileContent))
+			cmds = append(cmds, cmd)
 
 			localVariables := m.debugger.getLocalVariables()
 
 			m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.NewVariables(localVariables))
-			return m, cmd
+			cmds = append(cmds, cmd)
+
+			return m, tea.Batch(cmds...)
 		}
 
 		if msg.String() == "c" {
@@ -66,25 +79,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			fileContent := m.debugger.getCurrentFileContent()
 			m.code, cmd = m.code.Update(messages.NewCodeContent(fileContent))
+			cmds = append(cmds, cmd)
 
 			localVariables := m.debugger.getLocalVariables()
 
 			m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.NewVariables(localVariables))
-			return m, cmd
+			cmds = append(cmds, cmd)
+
+			return m, tea.Batch(cmds...)
 		}
 	}
-
-	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
-	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
 	sidebar := m.sidebar.localVariables.View()
-
 	mainContent := m.code.View()
-	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Top,
+		lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent),
+		//fmt.Sprintf("%v", m.logs),
+	)
+}
+
+func (m *model) Log(format string, v any) {
+	m.logs = append(m.logs, fmt.Sprintf(format, v))
 }
 
 type debugger struct {
@@ -122,7 +143,6 @@ func (d debugger) startProcess() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			if strings.Contains(scanner.Text(), "listening") {
-				println("debugger ready")
 				d.ready <- regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):\d{1,5}\b`).FindString(scanner.Text())
 			}
 		}
@@ -214,7 +234,7 @@ func main() {
 		code: sourcecode.New(debugger.getCurrentFileContent()),
 	}
 
-	if _, err := tea.NewProgram(m).Run(); err != nil {
+	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
