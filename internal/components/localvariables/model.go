@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/andersonjoseph/drill/internal/debugger"
+	"github.com/andersonjoseph/drill/internal/messages"
 	"github.com/andersonjoseph/drill/internal/types"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
@@ -95,14 +96,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleResize(msg.Height, msg.Width)
 		return m, nil
 
-	case tea.KeyMsg:
-		if msg.String() == "n" || msg.String() == "c" {
-			m.list.SetItems(variablesToListItems(m.debugger.GetLocalVariables()))
-		}
+	case messages.UpdateContent:
+		m.list.SetItems(variablesToListItems(m.debugger.GetLocalVariables()))
 
+	case tea.KeyMsg:
 		if id, err := strconv.Atoi(msg.String()); err == nil {
 			m.isFocused = id == m.id
 		}
+
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
 	}
 
 	if !m.isFocused {

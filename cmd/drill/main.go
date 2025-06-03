@@ -7,6 +7,7 @@ import (
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
 	"github.com/andersonjoseph/drill/internal/debugger"
+	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -33,13 +34,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.code, cmd = m.code.Update(msg)
-		cmds = append(cmds, cmd)
-
-		return m, tea.Batch(cmds...)
+		m.handleResize(msg)
+		return m, nil
 
 	case tea.KeyMsg:
 		if msg.String() == "q" || msg.String() == "ctrl+c" {
@@ -52,24 +48,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				fmt.Println("Error getting debugger state:", err)
 				os.Exit(1)
 			}
+			m.updateContent()
+			return m, nil
 		}
 
 		if msg.String() == "c" {
 			<-m.debugger.Client.Continue()
+			m.updateContent()
+			return m, nil
 		}
 
 		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
 		cmds = append(cmds, cmd)
 
-		m.code, cmd = m.code.Update(msg)
-		cmds = append(cmds, cmd)
-
 		return m, tea.Batch(cmds...)
 	}
-	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
-	cmds = append(cmds, cmd)
 
-	return m, tea.Batch(cmds...)
+	return m, nil
 }
 
 func (m model) View() string {
@@ -80,6 +75,16 @@ func (m model) View() string {
 		lipgloss.Top,
 		lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent),
 	)
+}
+
+func (m *model) updateContent() {
+	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(messages.UpdateContent{})
+	m.code, _ = m.code.Update(messages.UpdateContent{})
+}
+
+func (m *model) handleResize(msg tea.WindowSizeMsg) {
+	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(msg)
+	m.code, _ = m.code.Update(msg)
 }
 
 func main() {
