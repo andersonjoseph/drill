@@ -1,4 +1,4 @@
-package variablelist
+package localvariables
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/andersonjoseph/drill/internal/messages"
+	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/types"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
@@ -53,12 +53,10 @@ type model struct {
 	width     int
 	height    int
 	list      list.Model
-	variables []types.Variable
+	debugger  *debugger.Debugger
 }
 
-func New(title string, id int) model {
-	m := model{}
-
+func New(id int, title string, debugger *debugger.Debugger) model {
 	l := list.New([]list.Item{}, listDelegate{}, 0, 0)
 	l.SetShowHelp(false)
 	l.SetShowFilter(false)
@@ -68,14 +66,13 @@ func New(title string, id int) model {
 	l.Styles.NoItems = lipgloss.NewStyle().Width(0)
 	l.Paginator = setupPagination(0)
 
-	m.id = id
-	m.title = title
-	m.isFocused = id == 1
-	m.list = l
-	m.width = 0
-	m.height = 0
-
-	return m
+	return model{
+		id:        id,
+		title:     title,
+		isFocused: id == 1,
+		list:      l,
+		debugger:  debugger,
+	}
 }
 
 func setupPagination(totalItems int) paginator.Model {
@@ -93,38 +90,19 @@ func setupPagination(totalItems int) paginator.Model {
 
 func (m model) Init() tea.Cmd { return nil }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width/3
-		if m.width >= 40 {
-			m.width = 40
-		} else if m.width <= 20 {
-			m.width = 20
-		} 
-		m.list.SetWidth(m.width)
-		m.list.Styles.NoItems = noItemsStyle.Width(m.width)
-
-		windowHeight := msg.Height - 20
-		if windowHeight >= 10 {
-			m.height = 10
-		} else if windowHeight <= 3 {
-			m.height = 3
-		} else {
-			m.height = windowHeight
-		}
-
-		m.list.SetHeight(m.height)
+		m.handleResize(msg.Height, msg.Width)
 		return m, nil
 
 	case tea.KeyMsg:
+		if msg.String() == "n" || msg.String() == "c" {
+			m.list.SetItems(variablesToListItems(m.debugger.GetLocalVariables()))
+		}
+
 		if id, err := strconv.Atoi(msg.String()); err == nil {
 			m.isFocused = id == m.id
 		}
-
-	case messages.NewVariables:
-		m.variables = msg
-		m.list.SetItems(variablesToListItems(msg))
 	}
 
 	if !m.isFocused {
@@ -149,7 +127,7 @@ func (m model) View() string {
 	}
 
 	width := m.list.Width()
-	titleText := style.Render(m.title)
+	titleText := style.Render(fmt.Sprintf("%s [%d]", m.title, m.id))
 	titleWidth := lipgloss.Width(titleText)
 
 	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
@@ -166,6 +144,25 @@ func (m model) View() string {
 
 	renderedLines = append(renderedLines, bottomBorder)
 	return strings.Join(renderedLines, "\n")
+}
+
+func (m *model) handleResize(h, w int) {
+	m.width = w / 3
+	if m.width >= 40 {
+		m.width = 40
+	} else if m.width <= 20 {
+		m.width = 20
+	}
+	m.list.SetWidth(m.width)
+	m.list.Styles.NoItems = noItemsStyle.Width(m.width)
+
+	m.height = h / 3
+	if m.height >= 10 {
+		m.height = 10
+	} else if m.height <= 3 {
+		m.height = 3
+	}
+	m.list.SetHeight(m.height)
 }
 
 type listDelegate struct{}
