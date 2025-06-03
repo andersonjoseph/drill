@@ -13,12 +13,12 @@ import (
 )
 
 type sidebar struct {
-	localVariables tea.Model
+	localVariables localvariables.Model
 }
 
 type model struct {
 	sidebar      sidebar
-	code         tea.Model
+	code         sourcecode.Model
 	currentIndex int
 	debugger     *debugger.Debugger
 	logs         []string
@@ -68,6 +68,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+	if m.sidebar.localVariables.Error != nil {
+		return m.sidebar.localVariables.Error.Error()
+	}
+	if m.sidebar.localVariables.Error != nil {
+		return m.code.Error.Error()
+	}
+
 	sidebar := m.sidebar.localVariables.View()
 	mainContent := m.code.View()
 

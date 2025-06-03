@@ -47,17 +47,18 @@ var (
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
 )
 
-type model struct {
+type Model struct {
 	id        int
 	title     string
 	isFocused bool
 	width     int
 	height    int
 	list      list.Model
+	Error     error
 	debugger  *debugger.Debugger
 }
 
-func New(id int, title string, debugger *debugger.Debugger) model {
+func New(id int, title string, debugger *debugger.Debugger) Model {
 	l := list.New([]list.Item{}, listDelegate{}, 0, 0)
 	l.SetShowHelp(false)
 	l.SetShowFilter(false)
@@ -67,7 +68,7 @@ func New(id int, title string, debugger *debugger.Debugger) model {
 	l.Styles.NoItems = lipgloss.NewStyle().Width(0)
 	l.Paginator = setupPagination(0)
 
-	return model{
+	return Model{
 		id:        id,
 		title:     title,
 		isFocused: id == 1,
@@ -89,15 +90,16 @@ func setupPagination(totalItems int) paginator.Model {
 	return p
 }
 
-func (m model) Init() tea.Cmd { return nil }
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.handleResize(msg.Height, msg.Width)
 		return m, nil
 
 	case messages.UpdateContent:
-		m.list.SetItems(variablesToListItems(m.debugger.GetLocalVariables()))
+		m.updateContent()
+		return m, nil
 
 	case tea.KeyMsg:
 		if id, err := strconv.Atoi(msg.String()); err == nil {
@@ -122,7 +124,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	var style lipgloss.Style
 	if m.isFocused {
 		style = listFocusedStyle
@@ -150,7 +152,7 @@ func (m model) View() string {
 	return strings.Join(renderedLines, "\n")
 }
 
-func (m *model) handleResize(h, w int) {
+func (m *Model) handleResize(h, w int) {
 	m.width = w / 3
 	if m.width >= 40 {
 		m.width = 40
@@ -167,6 +169,16 @@ func (m *model) handleResize(h, w int) {
 		m.height = 3
 	}
 	m.list.SetHeight(m.height)
+}
+
+func (m *Model) updateContent() {
+	vars, err := m.debugger.GetLocalVariables()
+	if err != nil {
+		m.Error = fmt.Errorf("erorr updating content: %w", err)
+		return
+	}
+
+	m.list.SetItems(variablesToListItems(vars))
 }
 
 type listDelegate struct{}

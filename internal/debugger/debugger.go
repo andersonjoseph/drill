@@ -45,17 +45,17 @@ func New() (*Debugger, error) {
 	return d, nil
 }
 
-func (d Debugger) startProcess() {
+func (d Debugger) startProcess() error {
 	cmd := exec.Command("dlv", "debug", "--headless", "./cmd/test")
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("Error creating stdout pipe", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating stdout pipe: %w", err)
 	}
 
 	cmd.Start()
 	go func() {
+		defer stdout.Close()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			if strings.Contains(scanner.Text(), "listening") {
@@ -63,13 +63,14 @@ func (d Debugger) startProcess() {
 			}
 		}
 	}()
+
+	return nil
 }
 
-func (d *Debugger) GetCurrentFileContent(offset int) string {
+func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 	state, err := d.Client.GetState()
 	if err != nil {
-		fmt.Println("Error getting debugger state:", err)
-		os.Exit(1)
+		return "", fmt.Errorf("error getting debugger state: %w", err)
 	}
 
 	filename := state.CurrentThread.File
@@ -78,15 +79,13 @@ func (d *Debugger) GetCurrentFileContent(offset int) string {
 	if d.currentFile == nil || d.currentFile.Name() != filename {
 		if d.currentFile != nil {
 			if err := d.currentFile.Close(); err != nil {
-				fmt.Printf("Error closing file: %s: %v", filename, err)
-				os.Exit(1)
+				return "", fmt.Errorf("error closing file: %s: %w", filename, err)
 			}
 		}
 
 		f, err := os.Open(filename)
 		if err != nil {
-			fmt.Printf("Error opening file: %s: %v", filename, err)
-			os.Exit(1)
+			return "", fmt.Errorf("error opening file: %s: %v", filename, err)
 		}
 		d.currentFile = f
 	}
@@ -110,15 +109,14 @@ func (d *Debugger) GetCurrentFileContent(offset int) string {
 		lines.WriteString(scanner.Text() + "\n")
 	}
 
-	return lines.String()
+	return lines.String(), nil
 }
 
-func (d Debugger) GetLocalVariables() []types.Variable {
+func (d Debugger) GetLocalVariables() ([]types.Variable, error) {
 	state, err := d.Client.GetState()
 
 	if err != nil {
-		fmt.Println("Error getting state:", err)
-		os.Exit(1)
+		return []types.Variable{}, fmt.Errorf("error getting state: %w", err)
 	}
 
 	vars, err := d.Client.ListLocalVariables(
@@ -127,8 +125,7 @@ func (d Debugger) GetLocalVariables() []types.Variable {
 		}, d.lcfg)
 
 	if err != nil {
-		fmt.Println("Error getting local variables:", err)
-		os.Exit(1)
+		return []types.Variable{}, fmt.Errorf("error getting local variables: %w", err)
 	}
 
 	localVariables := make([]types.Variable, len(vars))
@@ -139,5 +136,5 @@ func (d Debugger) GetLocalVariables() []types.Variable {
 		}
 	}
 
-	return localVariables
+	return localVariables, nil
 }

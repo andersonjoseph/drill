@@ -1,30 +1,34 @@
 package sourcecode
 
 import (
+	"fmt"
+
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-type model struct {
+type Model struct {
 	content  string
 	width    int
 	height   int
+	Error    error
 	debugger *debugger.Debugger
 }
 
-func New(d *debugger.Debugger) model {
-	return model{
+func New(d *debugger.Debugger) Model {
+	return Model{
 		debugger: d,
 	}
 }
 
-func (m model) Init() tea.Cmd { return nil }
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.UpdateContent:
 		m.updateContent()
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.handleResize(msg.Height, msg.Width)
@@ -34,7 +38,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		Height(m.height).
@@ -42,11 +46,15 @@ func (m model) View() string {
 		Render(m.content)
 }
 
-func (m *model) updateContent() {
-	m.content = m.debugger.GetCurrentFileContent((m.height / 2) - 2)
+func (m *Model) updateContent() {
+	var err error
+	m.content, err = m.debugger.GetCurrentFileContent((m.height / 2) - 2)
+	if err != nil {
+		m.Error = fmt.Errorf("error updating content: %w", err)
+	}
 }
 
-func (m *model) handleResize(h, w int) {
+func (m *Model) handleResize(h, w int) {
 	sidebarWidth := w / 3
 	if sidebarWidth >= 40 {
 		sidebarWidth = 40
