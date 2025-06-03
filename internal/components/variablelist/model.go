@@ -96,14 +96,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		windowWidth := msg.Width
-		if windowWidth >= windowWidth/3 {
-			m.width = 50
-		} else if windowWidth <= 5 {
-			m.width = 5
-		} else {
-			m.width = windowWidth
-		}
+		m.width = msg.Width/3
+		if m.width >= 40 {
+			m.width = 40
+		} else if m.width <= 20 {
+			m.width = 20
+		} 
 		m.list.SetWidth(m.width)
 		m.list.Styles.NoItems = noItemsStyle.Width(m.width)
 

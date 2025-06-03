@@ -22,8 +22,15 @@ func (m model) Init() tea.Cmd { return nil }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		sidebarWidth := msg.Width/3
+		if sidebarWidth >= 40 {
+			sidebarWidth = 40
+		} else if sidebarWidth <= 20 {
+			sidebarWidth = 20
+		}
+		m.width = (msg.Width - sidebarWidth)-4
+
 		m.height = msg.Height - 3
-		m.width = msg.Width - 34
 		return m, nil
 
 	case messages.NewCodeContent:
