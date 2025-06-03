@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/andersonjoseph/drill/internal/components/breakpoints"
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
 	"github.com/andersonjoseph/drill/internal/debugger"
@@ -14,6 +15,7 @@ import (
 
 type sidebar struct {
 	localVariables localvariables.Model
+	breakpoints    breakpoints.Model
 }
 
 type model struct {
@@ -58,7 +60,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "r" {
+			m.debugger.Client.Restart(false)
+			m.updateContent()
+			return m, nil
+		}
+
+		if msg.String() == "t" {
+			m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.ToggleBreakpoint{})
+			return m, nil
+		}
+
+		if msg.String() == "d" {
+			m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.ClearBreakpoint{})
+			return m, nil
+		}
+
+		if msg.String() == "a" {
+			m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.CreateBreakpointNow{})
+			return m, nil
+		}
+
 		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
+		cmds = append(cmds, cmd)
+
+		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
 		cmds = append(cmds, cmd)
 
 		return m, tea.Batch(cmds...)
@@ -75,22 +101,30 @@ func (m model) View() string {
 		return m.code.Error.Error()
 	}
 
-	sidebar := m.sidebar.localVariables.View()
-	mainContent := m.code.View()
-
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
-		lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent),
+		lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			lipgloss.JoinVertical(
+				lipgloss.Top,
+				m.sidebar.localVariables.View(),
+				m.sidebar.breakpoints.View(),
+			),
+			m.code.View(),
+		),
 	)
 }
 
 func (m *model) updateContent() {
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(messages.UpdateContent{})
+	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.UpdateContent{})
+
 	m.code, _ = m.code.Update(messages.UpdateContent{})
 }
 
 func (m *model) handleResize(msg tea.WindowSizeMsg) {
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(msg)
+	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(msg)
 	m.code, _ = m.code.Update(msg)
 }
 
@@ -105,7 +139,8 @@ func main() {
 	m := model{
 		debugger: debugger,
 		sidebar: sidebar{
-			localVariables: localvariables.New(1, "Local Variables", debugger),
+			localVariables: localvariables.New(1, debugger),
+			breakpoints:    breakpoints.New(2, debugger),
 		},
 		code: sourcecode.New(debugger),
 	}

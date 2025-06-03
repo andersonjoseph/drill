@@ -1,4 +1,4 @@
-package localvariables
+package breakpoints
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
-	"github.com/andersonjoseph/drill/internal/types"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,25 +22,15 @@ const (
 	colorGreen  = lipgloss.Color("2")
 )
 
-type variableStyle struct {
-	name  lipgloss.Style
-	value lipgloss.Style
-}
-
 var (
 	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(colorGrey)
 
 	paginatorStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
 	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
 
-	variableStyleDefault variableStyle = variableStyle{
-		name:  lipgloss.NewStyle().Foreground(colorGrey),
-		value: lipgloss.NewStyle().Foreground(colorGrey),
-	}
-	variableFocusedStyle variableStyle = variableStyle{
-		name:  lipgloss.NewStyle().Foreground(colorPurple).Bold(true),
-		value: lipgloss.NewStyle().Foreground(colorGreen).Bold(true),
-	}
+	breakpointStyleFocused  lipgloss.Style = lipgloss.NewStyle().Foreground(colorPurple)
+	breakpointStyleDisabled lipgloss.Style = lipgloss.NewStyle().Foreground(colorGrey)
+	breakpointStyleDefault  lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite)
 
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGreen))
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
@@ -70,7 +59,7 @@ func New(id int, debugger *debugger.Debugger) Model {
 
 	return Model{
 		id:        id,
-		title:     "Local Variables",
+		title:     "Breakpoints",
 		isFocused: id == 1,
 		list:      l,
 		debugger:  debugger,
@@ -99,6 +88,43 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case messages.UpdateContent:
 		m.updateContent()
+		return m, nil
+
+	case messages.CreateBreakpointNow:
+		if !m.isFocused {
+			return m, nil
+		}
+
+		m.debugger.CreateBreakpointNow()
+		m.updateContent()
+		return m, nil
+
+	case messages.ToggleBreakpoint:
+		if !m.isFocused {
+			return m, nil
+		}
+		i := m.list.SelectedItem()
+		if i == nil {
+			return m, nil
+		}
+		id := i.(listItem).breakpoint.ID
+		m.debugger.ToggleBreakpoint(id)
+		m.updateContent()
+		return m, nil
+
+	case messages.ClearBreakpoint:
+		if !m.isFocused {
+			return m, nil
+		}
+		i := m.list.SelectedItem()
+		if i == nil {
+			return m, nil
+		}
+		id := i.(listItem).breakpoint.ID
+		m.debugger.ClearBreakpoint(id)
+		m.updateContent()
+		m.list.CursorUp()
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -175,22 +201,19 @@ func (m *Model) handleResize(h, w int) {
 }
 
 func (m *Model) updateContent() {
-	vars, err := m.debugger.GetLocalVariables()
+	bps, err := m.debugger.GetBreakpoints()
 	if err != nil {
 		m.Error = fmt.Errorf("erorr updating content: %w", err)
 		return
 	}
 
-	m.list.SetItems(variablesToListItems(vars))
+	m.list.SetItems(breakpointsToListItems(bps))
 }
 
 type listDelegate struct{}
 
 func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	listItem, ok := item.(listItem)
-	if !ok {
-		return
-	}
+	listItem := item.(listItem)
 
 	listItem.isFocused = m.Index() == index
 	fmt.Fprint(w, listItem.Render(m.Width()))
@@ -201,38 +224,36 @@ func (d listDelegate) Spacing() int                              { return 0 }
 func (d listDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
 
 type listItem struct {
-	variable  types.Variable
-	isFocused bool
+	breakpoint debugger.Breakpoint
+	isFocused  bool
 }
 
 func (i listItem) FilterValue() string { return "" }
 
-func (v listItem) Render(width int) string {
-	var nameStyle, valueStyle lipgloss.Style
+func (i listItem) Render(width int) string {
+	var style lipgloss.Style
 
-	if v.isFocused {
-		nameStyle = variableFocusedStyle.name
-		valueStyle = variableFocusedStyle.value
+	if i.isFocused {
+		style = breakpointStyleFocused
+	} else if i.breakpoint.Disabled {
+		style = breakpointStyleDisabled
 	} else {
-		nameStyle = variableStyleDefault.name
-		valueStyle = variableStyleDefault.value
+		style = breakpointStyleDefault
 	}
 
-	name := nameStyle.Render(v.variable.Name + ": ")
-	value := valueStyle.
-		Render(v.variable.Value)
+	breakpoint := style.Render(i.breakpoint.Name)
 
 	return lipgloss.NewStyle().
 		Width(width).
-		Render(name + value)
+		Render(breakpoint)
 }
 
-func variablesToListItems(vars []types.Variable) []list.Item {
-	items := make([]list.Item, len(vars))
+func breakpointsToListItems(bps []debugger.Breakpoint) []list.Item {
+	items := make([]list.Item, len(bps))
 
-	for i := range vars {
+	for i := range bps {
 		items[i] = listItem{
-			variable: vars[i],
+			breakpoint: bps[i],
 		}
 	}
 

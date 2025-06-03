@@ -2,11 +2,13 @@ package debugger
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,6 +16,12 @@ import (
 	"github.com/go-delve/delve/service/api"
 	"github.com/go-delve/delve/service/rpc2"
 )
+
+type Breakpoint struct {
+	ID       int
+	Name     string
+	Disabled bool
+}
 
 type Debugger struct {
 	Client      *rpc2.RPCClient
@@ -137,4 +145,66 @@ func (d Debugger) GetLocalVariables() ([]types.Variable, error) {
 	}
 
 	return localVariables, nil
+}
+
+func (d Debugger) GetBreakpoints() ([]Breakpoint, error) {
+	bps, err := d.Client.ListBreakpoints(false)
+	if err != nil {
+		return []Breakpoint{}, fmt.Errorf("error getting breakpoints: %w", err)
+	}
+	slices.SortFunc(bps, func(a, b *api.Breakpoint) int { return cmp.Compare(a.ID, b.ID) })
+
+	breakpoints := make([]Breakpoint, len(bps))
+	for i := range bps {
+		breakpoints[i] = apiBpToInternalBp(bps[i])
+	}
+
+	return breakpoints, nil
+}
+
+func (d Debugger) CreateBreakpoint(filename string, line int) (Breakpoint, error) {
+	bp, err := d.Client.CreateBreakpoint(&api.Breakpoint{
+		Line: line,
+		File: filename,
+	})
+	if err != nil {
+		return Breakpoint{}, fmt.Errorf("error creating breakpoint: %w", err)
+
+	}
+	return apiBpToInternalBp(bp), nil
+}
+
+func (d Debugger) CreateBreakpointNow() (Breakpoint, error) {
+	state, err := d.Client.GetState()
+	if err != nil {
+		return Breakpoint{}, fmt.Errorf("error getting debugger state: %w", err)
+	}
+
+	return d.CreateBreakpoint(state.CurrentThread.File, state.CurrentThread.Line)
+}
+
+func (d Debugger) ToggleBreakpoint(id int) error {
+	_, err := d.Client.ToggleBreakpoint(id)
+	if err != nil {
+		return fmt.Errorf("error toggling breakpoint: %w", err)
+	}
+
+	return nil
+}
+
+func (d Debugger) ClearBreakpoint(id int) error {
+	_, err := d.Client.ClearBreakpoint(id)
+	if err != nil {
+		return fmt.Errorf("error clearing breakpoint: %w", err)
+	}
+
+	return nil
+}
+
+func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
+	return Breakpoint{
+		ID:       bp.ID,
+		Name:     fmt.Sprintf("%s:%d", bp.File, bp.Line),
+		Disabled: bp.Disabled,
+	}
 }
