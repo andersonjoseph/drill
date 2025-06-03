@@ -1,8 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components/breakpoints"
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
@@ -157,6 +160,15 @@ func getSideBarSize(w, h int) (int, int) {
 	return w, h
 }
 
+func parseEntryBreakpoint(bp string) (string, int, error) {
+	breakpointAttrs := strings.Split(bp, ":")
+
+	filename := breakpointAttrs[0]
+	line, err := strconv.Atoi(breakpointAttrs[1])
+
+	return filename, line, err
+}
+
 func main() {
 	debugger, err := debugger.New()
 	if err != nil {
@@ -164,7 +176,6 @@ func main() {
 		os.Exit(1)
 	}
 	defer debugger.Client.Disconnect(false)
-
 	m := model{
 		debugger: debugger,
 		sidebar: sidebar{
@@ -172,6 +183,31 @@ func main() {
 			breakpoints:    breakpoints.New(2, debugger),
 		},
 		code: sourcecode.New(debugger),
+	}
+
+	var bp string
+	var autoContinue bool
+	flag.StringVar(&bp, "bp", "", "create a breakpoint")
+	flag.BoolVar(&autoContinue, "c", false, "create a breakpoint")
+
+	flag.Parse()
+
+	if bp != "" {
+		filename, line, err := parseEntryBreakpoint(bp)
+		if err != nil {
+			fmt.Println("Error parsing breakpoint:", err)
+			os.Exit(1)
+		}
+
+		_, err = debugger.CreateBreakpoint(filename, line)
+		if err != nil {
+			fmt.Println("Error parsing breakpoint:", err)
+			os.Exit(1)
+		}
+		if autoContinue {
+			<-debugger.Client.Continue()
+			m.updateContent()
+		}
 	}
 
 	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {

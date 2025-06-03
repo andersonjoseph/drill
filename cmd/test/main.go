@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"runtime"
 	"time"
 )
 
@@ -78,7 +77,6 @@ func main() {
 	var complex64Var complex64 = complex(1.5, 2.5)
 	var complex128Var complex128 = complex(3.14159, 2.71828)
 
-	runtime.Breakpoint()
 	// Strings
 	var emptyString = ""
 	var shortString = "Hello"
@@ -222,7 +220,6 @@ multiple lines`
 	)
 
 	// Modify some values to test variable updates
-	runtime.Breakpoint()
 
 	intValue = 100
 	person.Age = 29
@@ -239,8 +236,6 @@ multiple lines`
 	node2 := &Node{Value: 2}
 	node1.Next = node2
 	node2.Next = node1 // circular reference
-
-	runtime.Breakpoint()
 
 	// Print some values to prevent compiler optimization
 	fmt.Println("=== Variable Test Output ===")
