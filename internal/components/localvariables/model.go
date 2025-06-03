@@ -51,8 +51,8 @@ type Model struct {
 	id        int
 	title     string
 	isFocused bool
-	width     int
-	height    int
+	Width     int
+	Height    int
 	list      list.Model
 	Error     error
 	debugger  *debugger.Debugger
@@ -94,7 +94,9 @@ func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.handleResize(msg.Height, msg.Width)
+		m.list.SetHeight(m.Height)
+		m.list.SetWidth(m.Width)
+		m.list.Styles.NoItems = noItemsStyle.Width(m.Width)
 		return m, nil
 
 	case messages.UpdateContent:
@@ -153,25 +155,6 @@ func (m Model) View() string {
 
 	renderedLines = append(renderedLines, bottomBorder)
 	return strings.Join(renderedLines, "\n")
-}
-
-func (m *Model) handleResize(h, w int) {
-	m.width = w / 3
-	if m.width >= 40 {
-		m.width = 40
-	} else if m.width <= 20 {
-		m.width = 20
-	}
-	m.list.SetWidth(m.width)
-	m.list.Styles.NoItems = noItemsStyle.Width(m.width)
-
-	m.height = h / 3
-	if m.height >= 10 {
-		m.height = 10
-	} else if m.height <= 3 {
-		m.height = 3
-	}
-	m.list.SetHeight(m.height)
 }
 
 func (m *Model) updateContent() {

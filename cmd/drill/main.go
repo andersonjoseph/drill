@@ -123,9 +123,38 @@ func (m *model) updateContent() {
 }
 
 func (m *model) handleResize(msg tea.WindowSizeMsg) {
+	sidebarWidth, sidebarHeight := getSideBarSize(msg.Width, msg.Height)
+
+	m.sidebar.localVariables.Width = sidebarWidth
+	m.sidebar.localVariables.Height = sidebarHeight
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(msg)
+
+	m.sidebar.breakpoints.Width = sidebarWidth
+	m.sidebar.breakpoints.Height = sidebarHeight
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(msg)
+
+	m.code.Height = max(msg.Height-2, 5)
+	m.code.Width = (msg.Width - sidebarWidth) - 4
+
 	m.code, _ = m.code.Update(msg)
+}
+
+func getSideBarSize(w, h int) (int, int) {
+	w = w / 2
+	if w >= 50 {
+		w = 50
+	} else if w <= 20 {
+		w = 20
+	}
+
+	h = h / 3
+	if h >= 15 {
+		h = 15
+	} else if h <= 3 {
+		h = 3
+	}
+
+	return w, h
 }
 
 func main() {
