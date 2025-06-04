@@ -119,6 +119,13 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 
 	return lines.String(), nil
 }
+func (d *Debugger) GetCurrentFilename() (string, error) {
+	if d.currentFile == nil {
+		return "", errors.New("error getting the current filename: currentFile is nil")
+	}
+
+	return d.currentFile.Name(), nil
+}
 
 func (d Debugger) GetLocalVariables() ([]types.Variable, error) {
 	state, err := d.Client.GetState()

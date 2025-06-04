@@ -182,7 +182,7 @@ func main() {
 			localVariables: localvariables.New(1, debugger),
 			breakpoints:    breakpoints.New(2, debugger),
 		},
-		code: sourcecode.New(debugger),
+		code: sourcecode.New("Source Code", debugger),
 	}
 
 	var bp string
