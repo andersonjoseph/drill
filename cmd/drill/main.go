@@ -9,6 +9,7 @@ import (
 
 	"github.com/andersonjoseph/drill/internal/components/breakpoints"
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
+	"github.com/andersonjoseph/drill/internal/components/output"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
@@ -23,23 +24,31 @@ type sidebar struct {
 
 type model struct {
 	sidebar      sidebar
-	code         sourcecode.Model
+	sourceCode   sourcecode.Model
+	output       output.Model
 	currentIndex int
 	debugger     *debugger.Debugger
 	logs         []string
 	error        error
 }
 
-func (m model) Init() tea.Cmd { return nil }
+func (m model) Init() tea.Cmd {
+	return m.output.Init()
+}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+
 	case tea.WindowSizeMsg:
 		m.handleResize(msg)
 		return m, nil
+
+	case messages.DebuggerOutput:
+		m.output, cmd = m.output.Update(msg)
+		return m, cmd
 
 	case tea.KeyMsg:
 		if msg.String() == "q" || msg.String() == "ctrl+c" {
@@ -52,13 +61,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.error = fmt.Errorf("error getting debugger state: %w", err)
 				return m, nil
 			}
-			m.updateContent()
+			m.handleUpdate()
 			return m, nil
 		}
 
 		if msg.String() == "c" {
 			<-m.debugger.Client.Continue()
-			m.updateContent()
+			m.handleUpdate()
 			return m, nil
 		}
 
@@ -69,8 +78,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.error = fmt.Errorf("error restarting debugger: %w", err)
 				return m, nil
 			}
-			m.updateContent()
-			return m, nil
+			m.handleUpdate()
+			m.output, cmd = m.output.Update(messages.Restart{})
+
+			return m, cmd
 		}
 
 		if msg.String() == "t" {
@@ -92,6 +103,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
+		cmds = append(cmds, cmd)
+
+		m.output, cmd = m.output.Update(msg)
 		cmds = append(cmds, cmd)
 
 		return m, tea.Batch(cmds...)
@@ -122,15 +136,18 @@ func (m model) View() string {
 				m.sidebar.localVariables.View(),
 				m.sidebar.breakpoints.View(),
 			),
-			m.code.View(),
+			lipgloss.JoinVertical(
+				lipgloss.Top,
+				m.sourceCode.View(),
+				m.output.View(),
+			),
 		),
 	)
 }
 
-func (m *model) updateContent() {
+func (m *model) handleUpdate() {
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(messages.UpdateContent{})
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.UpdateContent{})
-	m.code, _ = m.code.Update(messages.UpdateContent{})
 
 	if err := m.sidebar.localVariables.Error; err != nil {
 		m.error = err
@@ -140,9 +157,11 @@ func (m *model) updateContent() {
 		m.error = err
 		m.sidebar.breakpoints.Error = nil
 	}
-	if err := m.code.Error; err != nil {
+
+	m.sourceCode, _ = m.sourceCode.Update(messages.UpdateContent{})
+	if err := m.sourceCode.Error; err != nil {
 		m.error = err
-		m.code.Error = nil
+		m.sourceCode.Error = nil
 	}
 }
 
@@ -157,10 +176,13 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) {
 	m.sidebar.breakpoints.Height = sidebarHeight
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(msg)
 
-	m.code.Height = max(msg.Height-2, 5)
-	m.code.Width = (msg.Width - sidebarWidth) - 4
+	m.sourceCode.Height = max((msg.Height)-10, 5)
+	m.sourceCode.Width = (msg.Width - sidebarWidth) - 4
+	m.sourceCode, _ = m.sourceCode.Update(msg)
 
-	m.code, _ = m.code.Update(msg)
+	m.output.Height = max((msg.Height-m.sourceCode.Height)-5, 2)
+	m.output.Width = (msg.Width - sidebarWidth) - 4
+	m.output, _ = m.output.Update(msg)
 }
 
 func getSideBarSize(w, h int) (int, int) {
@@ -203,7 +225,8 @@ func main() {
 			localVariables: localvariables.New(1, debugger),
 			breakpoints:    breakpoints.New(2, debugger),
 		},
-		code: sourcecode.New("Source Code", debugger),
+		sourceCode: sourcecode.New("Source Code", debugger),
+		output:     output.New(3, "Output", debugger),
 	}
 
 	var bp string
@@ -227,7 +250,7 @@ func main() {
 		}
 		if autoContinue {
 			<-debugger.Client.Continue()
-			m.updateContent()
+			m.handleUpdate()
 		}
 	}
 

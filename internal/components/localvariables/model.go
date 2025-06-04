@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	"github.com/andersonjoseph/drill/internal/types"
@@ -15,35 +16,27 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const (
-	colorBlack  = lipgloss.Color("0")
-	colorWhite  = lipgloss.Color("15")
-	colorGrey   = lipgloss.Color("7")
-	colorPurple = lipgloss.Color("5")
-	colorGreen  = lipgloss.Color("2")
-)
-
 type variableStyle struct {
 	name  lipgloss.Style
 	value lipgloss.Style
 }
 
 var (
-	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(colorGrey)
+	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(components.ColorGrey)
 
-	paginatorStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
-	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
+	paginatorStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen).PaddingRight(2)
+	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite).PaddingRight(2)
 
 	variableStyleDefault variableStyle = variableStyle{
-		name:  lipgloss.NewStyle().Foreground(colorGrey),
-		value: lipgloss.NewStyle().Foreground(colorGrey),
+		name:  lipgloss.NewStyle().Foreground(components.ColorGrey),
+		value: lipgloss.NewStyle().Foreground(components.ColorGrey),
 	}
 	variableFocusedStyle variableStyle = variableStyle{
-		name:  lipgloss.NewStyle().Foreground(colorPurple).Bold(true),
-		value: lipgloss.NewStyle().Foreground(colorGreen).Bold(true),
+		name:  lipgloss.NewStyle().Foreground(components.ColorPurple).Bold(true),
+		value: lipgloss.NewStyle().Foreground(components.ColorGreen).Bold(true),
 	}
 
-	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGreen))
+	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(components.ColorGreen))
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
 )
 

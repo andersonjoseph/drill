@@ -26,19 +26,21 @@ type Breakpoint struct {
 type Debugger struct {
 	Client      *rpc2.RPCClient
 	ready       chan string
+	Output      chan string
 	lcfg        api.LoadConfig
 	currentFile *os.File
 }
 
 func New() (*Debugger, error) {
 	d := &Debugger{
-		ready: make(chan string),
+		ready:  make(chan string),
+		Output: make(chan string),
 		lcfg: api.LoadConfig{
 			FollowPointers:     true,
 			MaxVariableRecurse: 4,
-			MaxStringLen:       64,
-			MaxArrayValues:     16,
-			MaxStructFields:    16,
+			MaxStringLen:       32,
+			MaxArrayValues:     8,
+			MaxStructFields:    8,
 		},
 	}
 	d.startProcess()
@@ -53,7 +55,7 @@ func New() (*Debugger, error) {
 	return d, nil
 }
 
-func (d Debugger) startProcess() error {
+func (d *Debugger) startProcess() error {
 	cmd := exec.Command("dlv", "debug", "--headless", "./cmd/test")
 
 	stdout, err := cmd.StdoutPipe()
@@ -67,13 +69,18 @@ func (d Debugger) startProcess() error {
 		return fmt.Errorf("error starting debugger process: %w", err)
 	}
 
+	addressRegex := regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):\d{1,5}\b`)
+
 	go func() {
 		defer stdout.Close()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			if strings.Contains(scanner.Text(), "listening") {
-				d.ready <- regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):\d{1,5}\b`).FindString(scanner.Text())
+				d.ready <- addressRegex.FindString(scanner.Text())
+				continue
 			}
+
+			d.Output <- scanner.Text()
 		}
 	}()
 
