@@ -61,7 +61,12 @@ func (d Debugger) startProcess() error {
 		return fmt.Errorf("error creating stdout pipe: %w", err)
 	}
 
-	cmd.Start()
+	err = cmd.Start()
+	if err != nil {
+		stdout.Close()
+		return fmt.Errorf("error starting debugger process: %w", err)
+	}
+
 	go func() {
 		defer stdout.Close()
 		scanner := bufio.NewScanner(stdout)
@@ -133,7 +138,7 @@ func (d Debugger) GetLocalVariables() ([]types.Variable, error) {
 	state, err := d.Client.GetState()
 
 	if err != nil {
-		return []types.Variable{}, fmt.Errorf("error getting state: %w", err)
+		return []types.Variable{}, fmt.Errorf("error getting debugger state: %w", err)
 	}
 
 	vars, err := d.Client.ListLocalVariables(

@@ -27,11 +27,10 @@ type model struct {
 	currentIndex int
 	debugger     *debugger.Debugger
 	logs         []string
+	error        error
 }
 
-func (m model) Init() tea.Cmd {
-	return nil
-}
+func (m model) Init() tea.Cmd { return nil }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -50,8 +49,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "n" {
 			_, err := m.debugger.Client.Next()
 			if err != nil {
-				fmt.Println("Error getting debugger state:", err)
-				os.Exit(1)
+				m.error = fmt.Errorf("error getting debugger state: %w", err)
+				return m, nil
 			}
 			m.updateContent()
 			return m, nil
@@ -64,7 +63,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if msg.String() == "r" {
-			m.debugger.Client.Restart(false)
+			m.error = nil
+			_, err := m.debugger.Client.Restart(false)
+			if err != nil {
+				m.error = fmt.Errorf("error restarting debugger: %w", err)
+				return m, nil
+			}
 			m.updateContent()
 			return m, nil
 		}
@@ -96,12 +100,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() string {
-	if m.sidebar.localVariables.Error != nil {
-		return m.sidebar.localVariables.Error.Error()
+func buildErrMessage(err error) string {
+	if strings.Contains(err.Error(), "has exited with status 0") {
+		return "debug session ended press r to reset or q to quit"
 	}
-	if m.sidebar.localVariables.Error != nil {
-		return m.code.Error.Error()
+
+	return err.Error()
+}
+
+func (m model) View() string {
+	if m.error != nil {
+		return buildErrMessage(m.error)
 	}
 
 	return lipgloss.JoinVertical(
@@ -121,8 +130,20 @@ func (m model) View() string {
 func (m *model) updateContent() {
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(messages.UpdateContent{})
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.UpdateContent{})
-
 	m.code, _ = m.code.Update(messages.UpdateContent{})
+
+	if err := m.sidebar.localVariables.Error; err != nil {
+		m.error = err
+		m.sidebar.localVariables.Error = nil
+	}
+	if err := m.sidebar.breakpoints.Error; err != nil {
+		m.error = err
+		m.sidebar.breakpoints.Error = nil
+	}
+	if err := m.code.Error; err != nil {
+		m.error = err
+		m.code.Error = nil
+	}
 }
 
 func (m *model) handleResize(msg tea.WindowSizeMsg) {
