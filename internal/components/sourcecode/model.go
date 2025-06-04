@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
@@ -55,11 +56,26 @@ func (m Model) View() string {
 	)
 }
 
+func colorize(content string) (string, error) {
+	sb := strings.Builder{}
+
+	err := quick.Highlight(&sb, content, "go", "terminal8", "native")
+	if err != nil {
+		return "", fmt.Errorf("error highlighting the source code: %w", err)
+	}
+
+	return sb.String(), nil
+}
+
 func (m *Model) updateContent() {
 	var err error
-	m.content, err = m.debugger.GetCurrentFileContent((m.Height / 2) - 2)
+	content, err := m.debugger.GetCurrentFileContent((m.Height / 2) - 2)
 	if err != nil {
 		m.Error = fmt.Errorf("error updating content: %w", err)
+	}
+	m.content, err = colorize(content)
+	if err != nil {
+		m.Error = fmt.Errorf("error colorizing content: %w", err)
 	}
 
 	m.currentFilename, err = m.debugger.GetCurrentFilename()
