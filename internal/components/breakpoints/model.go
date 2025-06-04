@@ -216,7 +216,7 @@ func (i listItem) FilterValue() string { return "" }
 func (i listItem) Render(width int) string {
 	var style lipgloss.Style
 
-	if i.isFocused {
+	if i.isFocused && !i.breakpoint.Disabled {
 		style = breakpointStyleFocused
 	} else if i.breakpoint.Disabled {
 		style = breakpointStyleDisabled
