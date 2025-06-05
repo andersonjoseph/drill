@@ -41,6 +41,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case messages.UpdateContent:
+		m.updateContent()
 
 	case tea.WindowSizeMsg:
 		m.handleResize(msg)
@@ -55,22 +57,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		if msg.String() == "n" {
-			_, err := m.debugger.Client.Next()
-			if err != nil {
-				m.error = fmt.Errorf("error getting debugger state: %w", err)
-				return m, nil
-			}
-			m.handleUpdate()
-			return m, nil
-		}
-
-		if msg.String() == "c" {
-			<-m.debugger.Client.Continue()
-			m.handleUpdate()
-			return m, nil
-		}
-
 		if msg.String() == "r" {
 			m.error = nil
 			_, err := m.debugger.Client.Restart(false)
@@ -78,31 +64,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.error = fmt.Errorf("error restarting debugger: %w", err)
 				return m, nil
 			}
-			m.handleUpdate()
+			m.updateContent()
 			m.output, cmd = m.output.Update(messages.Restart{})
 
 			return m, cmd
-		}
-
-		if msg.String() == "t" {
-			m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.ToggleBreakpoint{})
-			return m, nil
-		}
-
-		if msg.String() == "d" {
-			m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.ClearBreakpoint{})
-			return m, nil
-		}
-
-		if msg.String() == "a" {
-			m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.CreateBreakpointNow{})
-			return m, nil
 		}
 
 		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
 		cmds = append(cmds, cmd)
 
 		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
+		cmds = append(cmds, cmd)
+
+		m.sourceCode, cmd = m.sourceCode.Update(msg)
 		cmds = append(cmds, cmd)
 
 		m.output, cmd = m.output.Update(msg)
@@ -145,7 +119,7 @@ func (m model) View() string {
 	)
 }
 
-func (m *model) handleUpdate() {
+func (m *model) updateContent() {
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(messages.UpdateContent{})
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.UpdateContent{})
 
@@ -225,8 +199,8 @@ func main() {
 			localVariables: localvariables.New(1, debugger),
 			breakpoints:    breakpoints.New(2, debugger),
 		},
-		sourceCode: sourcecode.New("Source Code", debugger),
-		output:     output.New(3, "Output", debugger),
+		sourceCode: sourcecode.New(3, "Source Code", debugger),
+		output:     output.New(4, "Output", debugger),
 	}
 
 	var bp string
@@ -250,7 +224,7 @@ func main() {
 		}
 		if autoContinue {
 			<-debugger.Client.Continue()
-			m.handleUpdate()
+			m.updateContent()
 		}
 	}
 

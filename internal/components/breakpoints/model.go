@@ -92,48 +92,26 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.updateContent()
 		return m, nil
 
-	case messages.CreateBreakpointNow:
-		if !m.isFocused {
-			return m, nil
-		}
-
-		m.debugger.CreateBreakpointNow()
-		m.updateContent()
-		return m, nil
-
-	case messages.ToggleBreakpoint:
-		if !m.isFocused {
-			return m, nil
-		}
-		i := m.list.SelectedItem()
-		if i == nil {
-			return m, nil
-		}
-		id := i.(listItem).breakpoint.ID
-		m.debugger.ToggleBreakpoint(id)
-		m.updateContent()
-		return m, nil
-
-	case messages.ClearBreakpoint:
-		if !m.isFocused {
-			return m, nil
-		}
-		i := m.list.SelectedItem()
-		if i == nil {
-			return m, nil
-		}
-		id := i.(listItem).breakpoint.ID
-		m.debugger.ClearBreakpoint(id)
-		m.updateContent()
-		m.list.CursorUp()
-
-		return m, nil
-
 	case tea.KeyMsg:
 		if id, err := strconv.Atoi(msg.String()); err == nil {
 			m.isFocused = id == m.id
 		}
 		if !m.isFocused {
+			return m, nil
+		}
+
+		if msg.String() == "a" {
+			m.CreateBreakpointNow()
+			return m, nil
+		}
+
+		if msg.String() == "t" {
+			m.ToggleBreakpoint()
+			return m, nil
+		}
+
+		if msg.String() == "d" {
+			m.ClearBreakpoint()
 			return m, nil
 		}
 
@@ -191,6 +169,32 @@ func (m *Model) updateContent() {
 	}
 
 	m.list.SetItems(breakpointsToListItems(bps))
+}
+
+func (m *Model) CreateBreakpointNow() {
+	m.debugger.CreateBreakpointNow()
+	m.updateContent()
+}
+
+func (m *Model) ToggleBreakpoint() {
+	i := m.list.SelectedItem()
+	if i == nil {
+		return
+	}
+	id := i.(listItem).breakpoint.ID
+	m.debugger.ToggleBreakpoint(id)
+	m.updateContent()
+}
+
+func (m *Model) ClearBreakpoint() {
+	i := m.list.SelectedItem()
+	if i == nil {
+		return
+	}
+	id := i.(listItem).breakpoint.ID
+	m.debugger.ClearBreakpoint(id)
+	m.updateContent()
+	m.list.CursorUp()
 }
 
 type listDelegate struct{}
