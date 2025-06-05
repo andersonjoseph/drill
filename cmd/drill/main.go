@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/components/breakpoints"
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
 	"github.com/andersonjoseph/drill/internal/components/output"
@@ -17,19 +18,42 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var errorStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorRed).BorderForeground(components.ColorRed)
+var warningStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorOrange).BorderForeground(components.ColorOrange)
+
 type sidebar struct {
 	localVariables localvariables.Model
 	breakpoints    breakpoints.Model
+	width          int
+	height         int
+}
+
+func (s *sidebar) calcSize(w, h int) {
+	w = w / 2
+	if w >= 50 {
+		w = 50
+	} else if w <= 20 {
+		w = 20
+	}
+	s.width = w
+
+	h = h / 4
+	if h >= 15 {
+		h = 15
+	} else if h <= 3 {
+		h = 3
+	}
+	s.height = h
 }
 
 type model struct {
-	sidebar      sidebar
-	sourceCode   sourcecode.Model
-	output       output.Model
-	currentIndex int
-	debugger     *debugger.Debugger
-	logs         []string
-	error        error
+	sidebar       sidebar
+	sourceCode    sourcecode.Model
+	output        output.Model
+	debugger      *debugger.Debugger
+	logs          []string
+	error         error
+	focusedWindow int
 }
 
 func (m model) Init() tea.Cmd {
@@ -40,9 +64,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	m.error = nil
 	switch msg := msg.(type) {
+	case messages.Restart:
+		m.updateContent()
+		return m, nil
+
+	case messages.FocusedWindow:
+		m.focusedWindow = int(msg)
+		return m, nil
+
 	case messages.UpdateContent:
 		m.updateContent()
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.handleResize(msg)
@@ -53,21 +87,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		if msg.String() == "q" || msg.String() == "ctrl+c" {
+		if m.focusedWindow != 0 && (msg.String() == "q" || msg.String() == "ctrl+c") {
 			return m, tea.Quit
 		}
 
-		if msg.String() == "r" {
-			m.error = nil
-			_, err := m.debugger.Client.Restart(false)
-			if err != nil {
-				m.error = fmt.Errorf("error restarting debugger: %w", err)
+		if m.focusedWindow != 0 {
+			if id, err := strconv.Atoi(msg.String()); err == nil {
+				m.focusedWindow = id
+
+				m.sidebar.localVariables.IsFocused = m.focusedWindow == m.sidebar.localVariables.ID
+				m.sidebar.breakpoints.IsFocused = m.focusedWindow == m.sidebar.breakpoints.ID
+
+				m.sourceCode.IsFocused = m.focusedWindow == m.sourceCode.ID
+				m.output.IsFocused = m.focusedWindow == m.output.ID
+
 				return m, nil
 			}
-			m.updateContent()
-			m.output, cmd = m.output.Update(messages.Restart{})
-
-			return m, cmd
 		}
 
 		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
@@ -88,19 +123,40 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func buildErrMessage(err error) string {
-	if strings.Contains(err.Error(), "has exited with status 0") {
-		return "debug session ended press r to reset or q to quit"
+func (m *model) viewErrMessage() string {
+	if m.error == nil {
+		return ""
 	}
 
-	return err.Error()
+	msg := m.error.Error()
+	style := errorStyle
+
+	if strings.Contains(msg, "has exited with status 0") {
+		msg = "debug session ended press r to reset or q to quit"
+		style = warningStyle
+	}
+
+	if strings.Contains(msg, "error evaluating expression:") {
+		msg = "breakpoint condition failed:" + strings.Split(msg, "error evaluating expression:")[1]
+		style = warningStyle
+	}
+
+	title := "Attention"
+	topBorder := "┌" + title + strings.Repeat("─", max(m.sidebar.width-len(title), 1)) + "┐"
+
+	return lipgloss.JoinVertical(
+		lipgloss.Top,
+		style.Render(topBorder),
+		style.
+			Border(lipgloss.NormalBorder()).
+			Width(m.sidebar.width).
+			BorderTop(false).
+			BorderForeground().
+			Render(msg),
+	)
 }
 
 func (m model) View() string {
-	if m.error != nil {
-		return buildErrMessage(m.error)
-	}
-
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
 		lipgloss.JoinHorizontal(
@@ -109,6 +165,7 @@ func (m model) View() string {
 				lipgloss.Top,
 				m.sidebar.localVariables.View(),
 				m.sidebar.breakpoints.View(),
+				m.viewErrMessage(),
 			),
 			lipgloss.JoinVertical(
 				lipgloss.Top,
@@ -140,41 +197,23 @@ func (m *model) updateContent() {
 }
 
 func (m *model) handleResize(msg tea.WindowSizeMsg) {
-	sidebarWidth, sidebarHeight := getSideBarSize(msg.Width, msg.Height)
+	m.sidebar.calcSize(msg.Width, msg.Height)
 
-	m.sidebar.localVariables.Width = sidebarWidth
-	m.sidebar.localVariables.Height = sidebarHeight
+	m.sidebar.localVariables.Width = m.sidebar.width
+	m.sidebar.localVariables.Height = m.sidebar.height
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(msg)
 
-	m.sidebar.breakpoints.Width = sidebarWidth
-	m.sidebar.breakpoints.Height = sidebarHeight
+	m.sidebar.breakpoints.Width = m.sidebar.width
+	m.sidebar.breakpoints.Height = m.sidebar.height
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(msg)
 
 	m.sourceCode.Height = max((msg.Height)-10, 5)
-	m.sourceCode.Width = (msg.Width - sidebarWidth) - 4
+	m.sourceCode.Width = (msg.Width - m.sidebar.width) - 4
 	m.sourceCode, _ = m.sourceCode.Update(msg)
 
 	m.output.Height = max((msg.Height-m.sourceCode.Height)-5, 2)
-	m.output.Width = (msg.Width - sidebarWidth) - 4
+	m.output.Width = (msg.Width - m.sidebar.width) - 4
 	m.output, _ = m.output.Update(msg)
-}
-
-func getSideBarSize(w, h int) (int, int) {
-	w = w / 2
-	if w >= 50 {
-		w = 50
-	} else if w <= 20 {
-		w = 20
-	}
-
-	h = h / 3
-	if h >= 15 {
-		h = 15
-	} else if h <= 3 {
-		h = 3
-	}
-
-	return w, h
 }
 
 func parseEntryBreakpoint(bp string) (string, int, error) {
@@ -194,7 +233,8 @@ func main() {
 	}
 	defer debugger.Client.Disconnect(false)
 	m := model{
-		debugger: debugger,
+		focusedWindow: 1,
+		debugger:      debugger,
 		sidebar: sidebar{
 			localVariables: localvariables.New(1, debugger),
 			breakpoints:    breakpoints.New(2, debugger),
@@ -202,6 +242,7 @@ func main() {
 		sourceCode: sourcecode.New(3, "Source Code", debugger),
 		output:     output.New(4, "Output", debugger),
 	}
+	m.sidebar.localVariables.IsFocused = true
 
 	var bp string
 	var autoContinue bool

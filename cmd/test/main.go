@@ -8,7 +8,7 @@ func main() {
 	y := 20
 
 	// Simple loop
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 100; i++ {
 		x = x + i
 		y = y - 1
 		fmt.Printf("i=%d, x=%d, y=%d\n", i, x, y)

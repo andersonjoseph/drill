@@ -2,7 +2,6 @@ package sourcecode
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2/quick"
@@ -19,10 +18,10 @@ var (
 )
 
 type Model struct {
-	id              int
+	ID              int
 	title           string
 	currentFilename string
-	isFocused       bool
+	IsFocused       bool
 	content         string
 	Width           int
 	Height          int
@@ -32,7 +31,7 @@ type Model struct {
 
 func New(id int, title string, d *debugger.Debugger) Model {
 	return Model{
-		id:       id,
+		ID:       id,
 		title:    title,
 		debugger: d,
 	}
@@ -46,18 +45,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if id, err := strconv.Atoi(msg.String()); err == nil {
-			m.isFocused = id == m.id
-			return m, nil
-		}
-		if !m.isFocused {
+		if !m.IsFocused {
 			return m, nil
 		}
 
 		if msg.String() == "n" {
 			_, err := m.debugger.Client.Next()
 			if err != nil {
-				m.Error = fmt.Errorf("error getting debugger state: %w", err)
+				m.Error = fmt.Errorf("error stepping over to the next line: %w", err)
 				return m, nil
 			}
 			return m, func() tea.Msg {
@@ -71,6 +66,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return messages.UpdateContent{}
 			}
 		}
+
+		if msg.String() == "r" {
+			_, err := m.debugger.Client.Restart(false)
+			if err != nil {
+				m.Error = fmt.Errorf("error restarting debugger: %w", err)
+				return m, nil
+			}
+			m.updateContent()
+			return m, func() tea.Msg {
+				return messages.Restart{}
+			}
+		}
 	}
 
 	return m, nil
@@ -78,13 +85,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) View() string {
 	var style lipgloss.Style
-	if m.isFocused {
+	if m.IsFocused {
 		style = listFocusedStyle
 	} else {
 		style = listDefaultStyle
 	}
 
-	title := fmt.Sprintf("[%d] %s [%s]", m.id, m.title, m.currentFilename)
+	title := fmt.Sprintf("[%d] %s [%s]", m.ID, m.title, m.currentFilename)
 
 	topBorder := "┌" + title + strings.Repeat("─", max(m.Width-len(title), 1)) + "┐"
 

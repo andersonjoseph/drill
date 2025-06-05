@@ -3,48 +3,42 @@ package breakpoints
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
+	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-const (
-	colorBlack  = lipgloss.Color("0")
-	colorWhite  = lipgloss.Color("15")
-	colorGrey   = lipgloss.Color("7")
-	colorPurple = lipgloss.Color("5")
-	colorGreen  = lipgloss.Color("2")
-)
-
 var (
-	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(colorGrey)
+	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(components.ColorGrey)
 
-	paginatorStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(colorGreen).PaddingRight(2)
-	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite).PaddingRight(2)
+	paginatorStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen).PaddingRight(2)
+	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite).PaddingRight(2)
 
-	breakpointStyleFocused  lipgloss.Style = lipgloss.NewStyle().Foreground(colorPurple)
-	breakpointStyleDisabled lipgloss.Style = lipgloss.NewStyle().Foreground(colorGrey)
-	breakpointStyleDefault  lipgloss.Style = lipgloss.NewStyle().Foreground(colorWhite)
+	breakpointStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorPurple)
+	breakpointStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
 
-	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(colorGreen))
+	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
 )
 
 type Model struct {
-	id        int
-	title     string
-	isFocused bool
-	Width     int
-	Height    int
-	list      list.Model
-	Error     error
-	debugger  *debugger.Debugger
+	ID              int
+	title           string
+	IsFocused       bool
+	Width           int
+	Height          int
+	list            list.Model
+	Error           error
+	debugger        *debugger.Debugger
+	addingCondition bool
+	conditionInput  textinput.Model
 }
 
 func New(id int, debugger *debugger.Debugger) Model {
@@ -57,12 +51,16 @@ func New(id int, debugger *debugger.Debugger) Model {
 	l.Styles.NoItems = lipgloss.NewStyle().Width(0)
 	l.Paginator = setupPagination(0)
 
+	ti := textinput.New()
+	ti.Placeholder = "condition"
+	ti.Width = 0
+
 	return Model{
-		id:        id,
-		title:     "Breakpoints",
-		isFocused: id == 1,
-		list:      l,
-		debugger:  debugger,
+		ID:             id,
+		title:          "Breakpoints",
+		list:           l,
+		debugger:       debugger,
+		conditionInput: ti,
 	}
 }
 
@@ -86,6 +84,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.list.SetHeight(m.Height)
 		m.list.SetWidth(m.Width)
 		m.list.Styles.NoItems = noItemsStyle.Width(m.Width)
+
+		m.conditionInput.Width = m.Width
 		return m, nil
 
 	case messages.UpdateContent:
@@ -93,10 +93,40 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if id, err := strconv.Atoi(msg.String()); err == nil {
-			m.isFocused = id == m.id
+		var cmd tea.Cmd
+		if m.addingCondition {
+			var cmds []tea.Cmd
+			if msg.String() == "esc" {
+				m.addingCondition = false
+				m.conditionInput.SetValue("")
+				return m, func() tea.Msg {
+					return messages.FocusedWindow(m.ID)
+				}
+			}
+			if msg.String() == "enter" {
+				m.addingCondition = false
+
+				bp := m.list.SelectedItem().(listItem)
+				_, err := m.debugger.AddConditionToBreakpoint(bp.breakpoint.ID, m.conditionInput.Value())
+
+				if err != nil {
+					m.Error = err
+					return m, nil
+				}
+
+				m.conditionInput.SetValue("")
+				m.updateContent()
+				return m, func() tea.Msg {
+					return messages.FocusedWindow(m.ID)
+				}
+			}
+			m.conditionInput, cmd = m.conditionInput.Update(msg)
+			cmds = append(cmds, cmd)
+
+			return m, tea.Batch(cmds...)
 		}
-		if !m.isFocused {
+
+		if !m.IsFocused {
 			return m, nil
 		}
 
@@ -115,12 +145,21 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		var cmd tea.Cmd
+		if msg.String() == "c" {
+			m.addingCondition = true
+			bp := m.list.SelectedItem().(listItem)
+			m.conditionInput.SetValue(bp.breakpoint.Condition)
+			m.conditionInput.Focus()
+			return m, func() tea.Msg {
+				return messages.FocusedWindow(0)
+			}
+		}
+
 		m.list, cmd = m.list.Update(msg)
 		return m, cmd
 	}
 
-	if !m.isFocused {
+	if !m.IsFocused {
 		m.list.Styles.PaginationStyle = paginatorStyleDefault
 		return m, nil
 	}
@@ -135,15 +174,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) View() string {
 	var style lipgloss.Style
-	if m.isFocused {
+	if m.IsFocused {
 		style = listFocusedStyle
 	} else {
 		style = listDefaultStyle
 	}
 
 	width := m.list.Width()
-	titleText := style.Render(fmt.Sprintf("%s [%d]", m.title, m.id))
+	titleText := style.Render(fmt.Sprintf("%s [%d]", m.title, m.ID))
 	titleWidth := lipgloss.Width(titleText)
+
+	if m.addingCondition {
+		m.conditionInput.Width = m.Width - 3
+		return style.
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(style.GetForeground()).
+			Foreground(components.ColorWhite).
+			Render(m.conditionInput.View())
+	}
 
 	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
 	bottomBorder := style.Render("└" + strings.Repeat("─", width) + "┘")
@@ -220,15 +268,25 @@ func (i listItem) FilterValue() string { return "" }
 func (i listItem) Render(width int) string {
 	var style lipgloss.Style
 
-	if i.isFocused && !i.breakpoint.Disabled {
+	var item string
+
+	if i.breakpoint.Disabled {
+		item = "○ " + i.breakpoint.Name
+	} else {
+		item = "• " + i.breakpoint.Name
+	}
+
+	if i.breakpoint.Condition != "" {
+		item += "\n\tcond:" + i.breakpoint.Condition
+	}
+
+	if i.isFocused {
 		style = breakpointStyleFocused
-	} else if i.breakpoint.Disabled {
-		style = breakpointStyleDisabled
 	} else {
 		style = breakpointStyleDefault
 	}
 
-	breakpoint := style.Render(i.breakpoint.Name)
+	breakpoint := style.Render(item)
 
 	return lipgloss.NewStyle().
 		Width(width).

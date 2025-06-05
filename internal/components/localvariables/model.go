@@ -3,7 +3,6 @@ package localvariables
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
@@ -41,9 +40,9 @@ var (
 )
 
 type Model struct {
-	id        int
+	ID        int
 	title     string
-	isFocused bool
+	IsFocused bool
 	Width     int
 	Height    int
 	list      list.Model
@@ -62,11 +61,10 @@ func New(id int, debugger *debugger.Debugger) Model {
 	l.Paginator = setupPagination(0)
 
 	return Model{
-		id:        id,
-		title:     "Local Variables",
-		isFocused: id == 1,
-		list:      l,
-		debugger:  debugger,
+		ID:       id,
+		title:    "Local Variables",
+		list:     l,
+		debugger: debugger,
 	}
 }
 
@@ -97,10 +95,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if id, err := strconv.Atoi(msg.String()); err == nil {
-			m.isFocused = id == m.id
-		}
-		if !m.isFocused {
+		if !m.IsFocused {
 			return m, nil
 		}
 
@@ -109,7 +104,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	if !m.isFocused {
+	if !m.IsFocused {
 		m.list.Styles.PaginationStyle = paginatorStyleDefault
 		return m, nil
 	}
@@ -124,14 +119,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) View() string {
 	var style lipgloss.Style
-	if m.isFocused {
+	if m.IsFocused {
 		style = listFocusedStyle
 	} else {
 		style = listDefaultStyle
 	}
 
 	width := m.list.Width()
-	titleText := style.Render(fmt.Sprintf("%s [%d]", m.title, m.id))
+	titleText := style.Render(fmt.Sprintf("%s [%d]", m.title, m.ID))
 	titleWidth := lipgloss.Width(titleText)
 
 	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")

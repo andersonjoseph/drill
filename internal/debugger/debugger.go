@@ -18,9 +18,10 @@ import (
 )
 
 type Breakpoint struct {
-	ID       int
-	Name     string
-	Disabled bool
+	ID        int
+	Name      string
+	Disabled  bool
+	Condition string
 }
 
 type Debugger struct {
@@ -90,7 +91,7 @@ func (d *Debugger) startProcess() error {
 func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 	state, err := d.Client.GetState()
 	if err != nil {
-		return "", fmt.Errorf("error getting debugger state: %w", err)
+		return "", fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
 	filename := state.CurrentThread.File
@@ -99,13 +100,13 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 	if d.currentFile == nil || d.currentFile.Name() != filename {
 		if d.currentFile != nil {
 			if err := d.currentFile.Close(); err != nil {
-				return "", fmt.Errorf("error closing file: %s: %w", filename, err)
+				return "", fmt.Errorf("error getting current file content: error closing file: %s: %w", filename, err)
 			}
 		}
 
 		f, err := os.Open(filename)
 		if err != nil {
-			return "", fmt.Errorf("error opening file: %s: %v", filename, err)
+			return "", fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
 		}
 		d.currentFile = f
 	}
@@ -133,6 +134,7 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 
 	return lines.String(), nil
 }
+
 func (d *Debugger) GetCurrentFilename() (string, error) {
 	if d.currentFile == nil {
 		return "", errors.New("error getting the current filename: currentFile is nil")
@@ -145,7 +147,7 @@ func (d Debugger) GetLocalVariables() ([]types.Variable, error) {
 	state, err := d.Client.GetState()
 
 	if err != nil {
-		return []types.Variable{}, fmt.Errorf("error getting debugger state: %w", err)
+		return []types.Variable{}, fmt.Errorf("eerror getting local variables: debugger state: %w", err)
 	}
 
 	vars, err := d.Client.ListLocalVariables(
@@ -154,7 +156,7 @@ func (d Debugger) GetLocalVariables() ([]types.Variable, error) {
 		}, d.lcfg)
 
 	if err != nil {
-		return []types.Variable{}, fmt.Errorf("error getting local variables: %w", err)
+		return []types.Variable{}, fmt.Errorf("error listing local variables: %w", err)
 	}
 
 	localVariables := make([]types.Variable, len(vars))
@@ -190,18 +192,34 @@ func (d Debugger) CreateBreakpoint(filename string, line int) (Breakpoint, error
 	})
 	if err != nil {
 		return Breakpoint{}, fmt.Errorf("error creating breakpoint: %w", err)
-
 	}
+
 	return apiBpToInternalBp(bp), nil
 }
 
 func (d Debugger) CreateBreakpointNow() (Breakpoint, error) {
 	state, err := d.Client.GetState()
 	if err != nil {
-		return Breakpoint{}, fmt.Errorf("error getting debugger state: %w", err)
+		return Breakpoint{}, fmt.Errorf("error creating breakpoint: debugger state: %w", err)
 	}
 
 	return d.CreateBreakpoint(state.CurrentThread.File, state.CurrentThread.Line)
+}
+
+func (d Debugger) AddConditionToBreakpoint(id int, cond string) (Breakpoint, error) {
+	bp, err := d.Client.GetBreakpoint(id)
+	if err != nil {
+		return Breakpoint{}, fmt.Errorf("error adding breakpoint condition: getting breakpoint: %w", err)
+	}
+
+	bp.Cond = cond
+
+	err = d.Client.AmendBreakpoint(bp)
+	if err != nil {
+		return Breakpoint{}, fmt.Errorf("error adding condition to breakpoint: amend breakpoint: %w", err)
+	}
+
+	return apiBpToInternalBp(bp), nil
 }
 
 func (d Debugger) ToggleBreakpoint(id int) error {
@@ -224,8 +242,9 @@ func (d Debugger) ClearBreakpoint(id int) error {
 
 func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
 	return Breakpoint{
-		ID:       bp.ID,
-		Name:     fmt.Sprintf("%s:%d", bp.File, bp.Line),
-		Disabled: bp.Disabled,
+		ID:        bp.ID,
+		Name:      fmt.Sprintf("%s:%d", bp.File, bp.Line),
+		Disabled:  bp.Disabled,
+		Condition: bp.Cond,
 	}
 }

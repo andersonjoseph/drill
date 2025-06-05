@@ -2,7 +2,6 @@ package output
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
@@ -19,8 +18,8 @@ var (
 )
 
 type Model struct {
-	id        int
-	isFocused bool
+	ID        int
+	IsFocused bool
 	title     string
 	content   string
 	Width     int
@@ -32,7 +31,7 @@ type Model struct {
 
 func New(id int, title string, d *debugger.Debugger) Model {
 	m := Model{
-		id:       id,
+		ID:       id,
 		title:    title,
 		debugger: d,
 		content:  "",
@@ -73,11 +72,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if id, err := strconv.Atoi(msg.String()); err == nil {
-			m.isFocused = id == m.id
-			return m, nil
-		}
-		if !m.isFocused {
+		if !m.IsFocused {
 			return m, nil
 		}
 
@@ -94,13 +89,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) View() string {
 	var style lipgloss.Style
-	if m.isFocused {
+	if m.IsFocused {
 		style = listFocusedStyle
 	} else {
 		style = listDefaultStyle
 	}
 
-	title := fmt.Sprintf("%s [%d] ", m.title, m.id)
+	title := fmt.Sprintf("%s [%d] ", m.title, m.ID)
 	topBorder := "┌" + title + strings.Repeat("─", max(m.Width-len(title), 1)) + "┐"
 
 	scrollPercent := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))

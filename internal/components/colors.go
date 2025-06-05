@@ -8,4 +8,6 @@ const (
 	ColorGrey   = lipgloss.Color("7")
 	ColorPurple = lipgloss.Color("5")
 	ColorGreen  = lipgloss.Color("2")
+	ColorRed    = lipgloss.Color("1")
+	ColorOrange = lipgloss.Color("208")
 )
