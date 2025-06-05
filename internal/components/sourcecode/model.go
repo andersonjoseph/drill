@@ -40,6 +40,10 @@ func New(id int, title string, d *debugger.Debugger) Model {
 func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case messages.IsFocused:
+		m.IsFocused = bool(msg)
+		return m, nil
+
 	case messages.UpdateContent, tea.WindowSizeMsg:
 		m.updateContent()
 		return m, nil

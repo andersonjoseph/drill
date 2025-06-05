@@ -53,6 +53,10 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case messages.IsFocused:
+		m.IsFocused = bool(msg)
+		return m, nil
+
 	case messages.Restart:
 		m.content = ""
 		m.viewport.SetContent(m.content)

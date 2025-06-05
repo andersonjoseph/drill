@@ -5,3 +5,4 @@ type DebuggerOutput string
 type Restart struct{}
 
 type FocusedWindow int
+type IsFocused bool

@@ -95,13 +95,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if id, err := strconv.Atoi(msg.String()); err == nil {
 				m.focusedWindow = id
 
-				m.sidebar.localVariables.IsFocused = m.focusedWindow == m.sidebar.localVariables.ID
-				m.sidebar.breakpoints.IsFocused = m.focusedWindow == m.sidebar.breakpoints.ID
+				m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.IsFocused(m.focusedWindow == m.sidebar.localVariables.ID))
+				cmds = append(cmds, cmd)
 
-				m.sourceCode.IsFocused = m.focusedWindow == m.sourceCode.ID
-				m.output.IsFocused = m.focusedWindow == m.output.ID
+				m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.IsFocused(m.focusedWindow == m.sidebar.breakpoints.ID))
+				cmds = append(cmds, cmd)
 
-				return m, nil
+				m.sourceCode, cmd = m.sourceCode.Update(messages.IsFocused(m.focusedWindow == m.sourceCode.ID))
+				cmds = append(cmds, cmd)
+
+				m.output, cmd = m.output.Update(messages.IsFocused(m.focusedWindow == m.output.ID))
+				cmds = append(cmds, cmd)
+
+				return m, tea.Batch(cmds...)
 			}
 		}
 

@@ -84,6 +84,10 @@ func setupPagination(totalItems int) paginator.Model {
 func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case messages.IsFocused:
+		m.IsFocused = bool(msg)
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.list.SetHeight(m.Height)
 		m.list.SetWidth(m.Width)

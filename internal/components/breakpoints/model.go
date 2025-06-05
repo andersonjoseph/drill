@@ -22,7 +22,7 @@ var (
 	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite).PaddingRight(2)
 
 	breakpointStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorPurple)
-	breakpointStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
+	breakpointStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
 
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
@@ -80,6 +80,10 @@ func setupPagination(totalItems int) paginator.Model {
 func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case messages.IsFocused:
+		m.IsFocused = bool(msg)
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.list.SetHeight(m.Height)
 		m.list.SetWidth(m.Width)
@@ -146,6 +150,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		if msg.String() == "c" {
+			if m.list.SelectedItem() == nil {
+				return m, nil
+			}
 			m.addingCondition = true
 			bp := m.list.SelectedItem().(listItem)
 			m.conditionInput.SetValue(bp.breakpoint.Condition)
@@ -267,7 +274,6 @@ func (i listItem) FilterValue() string { return "" }
 
 func (i listItem) Render(width int) string {
 	var style lipgloss.Style
-
 	var item string
 
 	if i.breakpoint.Disabled {
