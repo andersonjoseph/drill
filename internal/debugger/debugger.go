@@ -123,7 +123,7 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 		if currentLine < startLine {
 			continue
 		}
-		lines.WriteString(fmt.Sprintf("%d", currentLine))
+		lines.WriteString(fmt.Sprintf("%d ", currentLine))
 		if currentLine == breakpointLine {
 			lines.WriteString(" => ")
 		}
