@@ -116,7 +116,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 				if err != nil {
 					m.Error = err
-					return m, nil
+					return m, func() tea.Msg {
+						return messages.FocusedWindow(m.ID)
+					}
 				}
 
 				m.conditionInput.SetValue("")

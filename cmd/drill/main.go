@@ -18,7 +18,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var errorStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorRed).BorderForeground(components.ColorRed)
 var warningStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorOrange).BorderForeground(components.ColorOrange)
 
 type sidebar struct {
@@ -64,7 +63,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	m.error = nil
 	switch msg := msg.(type) {
 	case messages.Restart:
 		m.updateContent()
@@ -107,6 +105,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.output, cmd = m.output.Update(messages.IsFocused(m.focusedWindow == m.output.ID))
 				cmds = append(cmds, cmd)
 
+				m.bubbleUpComponentErrors()
 				return m, tea.Batch(cmds...)
 			}
 		}
@@ -123,28 +122,46 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.output, cmd = m.output.Update(msg)
 		cmds = append(cmds, cmd)
 
+		m.error = nil
+		m.bubbleUpComponentErrors()
 		return m, tea.Batch(cmds...)
 	}
 
 	return m, nil
 }
 
-func (m *model) viewErrMessage() string {
+func (m *model) bubbleUpComponentErrors() {
+	if err := m.sidebar.localVariables.Error; err != nil {
+		m.error = err
+		m.sidebar.localVariables.Error = nil
+		return
+	}
+	if err := m.sidebar.breakpoints.Error; err != nil {
+		m.error = err
+		m.sidebar.breakpoints.Error = nil
+		return
+	}
+	if err := m.sourceCode.Error; err != nil {
+		m.error = err
+		m.sourceCode.Error = nil
+		return
+	}
+}
+
+func (m model) viewErrMessage() string {
 	if m.error == nil {
 		return ""
 	}
 
 	msg := m.error.Error()
-	style := errorStyle
+	style := warningStyle
 
 	if strings.Contains(msg, "has exited with status 0") {
 		msg = "debug session ended press r to reset or q to quit"
-		style = warningStyle
 	}
 
 	if strings.Contains(msg, "error evaluating expression:") {
 		msg = "breakpoint condition failed:" + strings.Split(msg, "error evaluating expression:")[1]
-		style = warningStyle
 	}
 
 	title := "Attention"
@@ -185,21 +202,9 @@ func (m model) View() string {
 func (m *model) updateContent() {
 	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(messages.UpdateContent{})
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.UpdateContent{})
-
-	if err := m.sidebar.localVariables.Error; err != nil {
-		m.error = err
-		m.sidebar.localVariables.Error = nil
-	}
-	if err := m.sidebar.breakpoints.Error; err != nil {
-		m.error = err
-		m.sidebar.breakpoints.Error = nil
-	}
-
 	m.sourceCode, _ = m.sourceCode.Update(messages.UpdateContent{})
-	if err := m.sourceCode.Error; err != nil {
-		m.error = err
-		m.sourceCode.Error = nil
-	}
+
+	m.bubbleUpComponentErrors()
 }
 
 func (m *model) handleResize(msg tea.WindowSizeMsg) {
