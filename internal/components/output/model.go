@@ -99,7 +99,7 @@ func (m Model) View() string {
 		style = listDefaultStyle
 	}
 
-	title := fmt.Sprintf("%s [%d] ", m.title, m.ID)
+	title := fmt.Sprintf("[%d] %s", m.ID, m.title)
 	topBorder := "┌" + title + strings.Repeat("─", max(m.Width-len(title), 1)) + "┐"
 
 	scrollPercent := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))

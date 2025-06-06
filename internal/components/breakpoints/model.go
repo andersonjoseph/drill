@@ -189,7 +189,7 @@ func (m Model) View() string {
 	}
 
 	width := m.list.Width()
-	title := style.Render(fmt.Sprintf("%s [%d]", m.title, m.ID))
+	title := style.Render(fmt.Sprintf("[%d] %s", m.ID, m.title))
 	titleWidth := lipgloss.Width(title)
 
 	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
