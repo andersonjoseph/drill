@@ -3,6 +3,7 @@ package breakpoints
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
@@ -188,32 +189,32 @@ func (m Model) View() string {
 	}
 
 	width := m.list.Width()
-	titleText := style.Render(fmt.Sprintf("%s [%d]", m.title, m.ID))
-	titleWidth := lipgloss.Width(titleText)
+	title := style.Render(fmt.Sprintf("%s [%d]", m.title, m.ID))
+	titleWidth := lipgloss.Width(title)
+
+	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
 
 	if m.addingCondition {
 		m.conditionInput.Width = m.Width - 3
-		return style.
-			BorderStyle(lipgloss.NormalBorder()).
+		return lipgloss.JoinVertical(lipgloss.Top,
+			topBorder,
+			style.
+				Border(lipgloss.NormalBorder()).
+				BorderTop(false).
+				BorderForeground(style.GetForeground()).
+				Foreground(components.ColorWhite).
+				Render(m.conditionInput.View()),
+		)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Top,
+		topBorder,
+		style.
+			Border(lipgloss.NormalBorder()).
 			BorderForeground(style.GetForeground()).
-			Foreground(components.ColorWhite).
-			Render(m.conditionInput.View())
-	}
-
-	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
-	bottomBorder := style.Render("└" + strings.Repeat("─", width) + "┘")
-	verticalBorder := style.Render("│")
-
-	lines := strings.Split(m.list.View(), "\n")
-	renderedLines := []string{topBorder}
-
-	for _, line := range lines {
-		paddedLine := verticalBorder + line + verticalBorder
-		renderedLines = append(renderedLines, paddedLine)
-	}
-
-	renderedLines = append(renderedLines, bottomBorder)
-	return strings.Join(renderedLines, "\n")
+			BorderTop(false).
+			Render(m.list.View()),
+	)
 }
 
 func (m *Model) updateContent() {
@@ -252,6 +253,55 @@ func (m *Model) ClearBreakpoint() {
 	m.list.CursorUp()
 }
 
+func truncPath(path string, maxWidth int) string {
+	if len(path) <= maxWidth {
+		return path
+	}
+
+	dir, filename := filepath.Split(path)
+
+	if len(filename) >= maxWidth {
+		return filename
+	}
+
+	availableSpace := maxWidth - len(filename) - 3
+
+	if availableSpace <= 0 {
+		return filename
+	}
+
+	dirParts := strings.Split(strings.TrimSuffix(dir, string(filepath.Separator)), string(filepath.Separator))
+
+	var truncatedDir string
+	for i := len(dirParts) - 1; i >= 0; i-- {
+		nextPart := dirParts[i]
+		if i < len(dirParts)-1 {
+			nextPart += string(filepath.Separator)
+		}
+
+		if len(nextPart)+len(truncatedDir) > availableSpace {
+			if truncatedDir != "" {
+				break
+			}
+
+			if len(nextPart) > availableSpace {
+				truncatedDir = nextPart[len(nextPart)-availableSpace:]
+			} else {
+				truncatedDir = nextPart
+			}
+			break
+		}
+
+		truncatedDir = nextPart + truncatedDir
+	}
+
+	if truncatedDir != "" && !strings.HasSuffix(truncatedDir, string(filepath.Separator)) {
+		truncatedDir += string(filepath.Separator)
+	}
+
+	return "..." + truncatedDir + filename
+}
+
 type listDelegate struct{}
 
 func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -276,10 +326,12 @@ func (i listItem) Render(width int) string {
 	var style lipgloss.Style
 	var item string
 
+	name := truncPath(i.breakpoint.Name, width-3)
+
 	if i.breakpoint.Disabled {
-		item = "○ " + i.breakpoint.Name
+		item = "○ " + name
 	} else {
-		item = "• " + i.breakpoint.Name
+		item = "• " + name
 	}
 
 	if i.breakpoint.Condition != "" {

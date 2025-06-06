@@ -134,19 +134,14 @@ func (m Model) View() string {
 	titleWidth := lipgloss.Width(titleText)
 
 	topBorder := style.Render("┌") + titleText + style.Render(strings.Repeat("─", max(width-titleWidth, 1))) + style.Render("┐")
-	bottomBorder := style.Render("└" + strings.Repeat("─", width) + "┘")
-	verticalBorder := style.Render("│")
-
-	lines := strings.Split(m.list.View(), "\n")
-	renderedLines := []string{topBorder}
-
-	for _, line := range lines {
-		paddedLine := verticalBorder + line + verticalBorder
-		renderedLines = append(renderedLines, paddedLine)
-	}
-
-	renderedLines = append(renderedLines, bottomBorder)
-	return strings.Join(renderedLines, "\n")
+	return lipgloss.JoinVertical(lipgloss.Top,
+		topBorder,
+		style.
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(style.GetForeground()).
+			BorderTop(false).
+			Render(m.list.View()),
+	)
 }
 
 func (m *Model) updateContent() {
