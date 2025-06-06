@@ -13,8 +13,17 @@ import (
 )
 
 var (
-	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
-	listDefaultStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
+	windowFocusedStyle lipgloss.Style = lipgloss.NewStyle().
+				Foreground(components.ColorGreen).
+				Border(lipgloss.NormalBorder()).
+				BorderTop(false).
+				BorderForeground(components.ColorGreen)
+
+	windowDefaultStyle lipgloss.Style = lipgloss.NewStyle().
+				Foreground(components.ColorWhite).
+				Border(lipgloss.NormalBorder()).BorderTop(false).
+				BorderTop(false).
+				BorderForeground(components.ColorWhite)
 )
 
 type Model struct {
@@ -90,9 +99,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (m Model) View() string {
 	var style lipgloss.Style
 	if m.IsFocused {
-		style = listFocusedStyle
+		style = windowFocusedStyle
 	} else {
-		style = listDefaultStyle
+		style = windowDefaultStyle
 	}
 
 	title := fmt.Sprintf("[%d] %s [%s]", m.ID, m.title, m.currentFilename)
@@ -101,11 +110,8 @@ func (m Model) View() string {
 
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
-		style.Render(topBorder),
-		lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderTop(false).
-			BorderForeground(style.GetForeground()).
+		style.Border(lipgloss.Border{}).Render(topBorder),
+		style.
 			Height(m.Height).
 			Width(m.Width).
 			Render(m.content),

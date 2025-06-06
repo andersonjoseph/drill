@@ -12,11 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andersonjoseph/drill/internal/types"
 	"github.com/go-delve/delve/service/api"
 	"github.com/go-delve/delve/service/rpc2"
 )
 
+type Variable struct {
+	Name  string
+	Value string
+}
 type Breakpoint struct {
 	ID        int
 	Name      string
@@ -32,7 +35,7 @@ type Debugger struct {
 	currentFile *os.File
 }
 
-func New() (*Debugger, error) {
+func New(filename string) (*Debugger, error) {
 	d := &Debugger{
 		ready:  make(chan string),
 		Output: make(chan string),
@@ -44,7 +47,7 @@ func New() (*Debugger, error) {
 			MaxStructFields:    8,
 		},
 	}
-	d.startProcess()
+	d.startProcess(filename)
 
 	select {
 	case addr := <-d.ready:
@@ -56,8 +59,8 @@ func New() (*Debugger, error) {
 	return d, nil
 }
 
-func (d *Debugger) startProcess() error {
-	cmd := exec.Command("dlv", "debug", "--headless", "./cmd/test")
+func (d *Debugger) startProcess(filename string) error {
+	cmd := exec.Command("dlv", "debug", "--headless", filename)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -124,9 +127,11 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 		if currentLine < startLine {
 			continue
 		}
-		lines.WriteString(fmt.Sprintf("%d ", currentLine))
+		lines.WriteString(fmt.Sprintf("%d", currentLine))
 		if currentLine == breakpointLine {
 			lines.WriteString(" => ")
+		} else {
+			lines.WriteString("    ")
 		}
 
 		lines.WriteString(scanner.Text() + "\n")
@@ -143,25 +148,23 @@ func (d *Debugger) GetCurrentFilename() (string, error) {
 	return d.currentFile.Name(), nil
 }
 
-func (d Debugger) GetLocalVariables() ([]types.Variable, error) {
+func (d Debugger) GetLocalVariables() ([]Variable, error) {
 	state, err := d.Client.GetState()
-
 	if err != nil {
-		return []types.Variable{}, fmt.Errorf("eerror getting local variables: debugger state: %w", err)
+		return []Variable{}, fmt.Errorf("eerror getting local variables: debugger state: %w", err)
 	}
 
 	vars, err := d.Client.ListLocalVariables(
 		api.EvalScope{
 			GoroutineID: state.CurrentThread.GoroutineID,
 		}, d.lcfg)
-
 	if err != nil {
-		return []types.Variable{}, fmt.Errorf("error listing local variables: %w", err)
+		return []Variable{}, fmt.Errorf("error listing local variables: %w", err)
 	}
 
-	localVariables := make([]types.Variable, len(vars))
+	localVariables := make([]Variable, len(vars))
 	for i := range vars {
-		localVariables[i] = types.Variable{
+		localVariables[i] = Variable{
 			Name:  vars[i].Name,
 			Value: vars[i].SinglelineString(),
 		}
