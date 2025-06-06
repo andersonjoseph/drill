@@ -83,6 +83,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.IsFocused:
 		m.IsFocused = bool(msg)
+		m.list.SetDelegate(listDelegate{parentFocused: m.IsFocused})
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -304,13 +305,15 @@ func truncPath(path string, maxWidth int) string {
 	return "..." + truncatedDir + filename
 }
 
-type listDelegate struct{}
+type listDelegate struct{
+	parentFocused bool
+}
 
 func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	listItem := item.(listItem)
 
 	listItem.isFocused = m.Index() == index
-	fmt.Fprint(w, listItem.Render(m.Width()))
+	fmt.Fprint(w, listItem.Render(m.Width(), d.parentFocused))
 }
 
 func (d listDelegate) Height() int                               { return 1 }
@@ -324,29 +327,30 @@ type listItem struct {
 
 func (i listItem) FilterValue() string { return "" }
 
-func (i listItem) Render(width int) string {
+func (i listItem) Render(width int, parentFocused bool) string {
 	var style lipgloss.Style
-	var item string
+	var disabledIndicator string
 
-	name := truncPath(i.breakpoint.Name, width-3)
+	item := truncPath(i.breakpoint.Name, width-3)
 
 	if i.breakpoint.Disabled {
-		item = "○ " + name
+		disabledIndicator = lipgloss.NewStyle().Foreground(components.ColorGrey).Render("[-] ")
 	} else {
-		item = "• " + name
+		disabledIndicator = lipgloss.NewStyle().Foreground(components.ColorGreen).Render("[+] ")
 	}
 
 	if i.breakpoint.Condition != "" {
-		item += "\n\tcond:" + i.breakpoint.Condition
+		item += lipgloss.NewStyle().Foreground(components.ColorYellow).Render("\n\twhen: " + i.breakpoint.Condition)
 	}
 
-	if i.isFocused {
+	if i.isFocused && parentFocused {
 		style = breakpointStyleFocused
 	} else {
 		style = breakpointStyleDefault
 	}
 
-	breakpoint := style.Render(item)
+	breakpoint := 
+	lipgloss.JoinHorizontal(lipgloss.Top, disabledIndicator, style.Render(item))
 
 	return lipgloss.NewStyle().
 		Width(width).

@@ -86,6 +86,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.IsFocused:
 		m.IsFocused = bool(msg)
+		m.list.SetDelegate(listDelegate{parentFocused: m.IsFocused})
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -154,7 +155,9 @@ func (m *Model) updateContent() {
 	m.list.SetItems(variablesToListItems(vars))
 }
 
-type listDelegate struct{}
+type listDelegate struct{
+	parentFocused bool
+}
 
 func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	listItem, ok := item.(listItem)
@@ -163,7 +166,7 @@ func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	}
 
 	listItem.isFocused = m.Index() == index
-	fmt.Fprint(w, listItem.Render(m.Width()))
+	fmt.Fprint(w, listItem.Render(m.Width(), d.parentFocused))
 }
 
 func (d listDelegate) Height() int                               { return 1 }
@@ -177,10 +180,10 @@ type listItem struct {
 
 func (i listItem) FilterValue() string { return "" }
 
-func (v listItem) Render(width int) string {
+func (v listItem) Render(width int, parentFocused bool) string {
 	var nameStyle, valueStyle lipgloss.Style
 
-	if v.isFocused {
+	if v.isFocused && parentFocused {
 		nameStyle = variableFocusedStyle.name
 		valueStyle = variableFocusedStyle.value
 	} else {
