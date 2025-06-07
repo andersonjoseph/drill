@@ -131,7 +131,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		if msg.String() == "t" {
 			m.toggleBreakpoint()
-			return m, nil
+			return m, func() tea.Msg {
+				return messages.UpdateContent{}
+			}
 		}
 
 		if msg.String() == "d" {
@@ -208,7 +210,6 @@ func (m *Model) toggleBreakpoint() {
 	}
 	id := i.(listItem).breakpoint.ID
 	m.debugger.ToggleBreakpoint(id)
-	m.updateContent()
 }
 
 func (m *Model) clearBreakpoint() {

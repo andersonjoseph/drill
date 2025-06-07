@@ -24,6 +24,8 @@ type Variable struct {
 type Breakpoint struct {
 	ID        int
 	Name      string
+	Line      int
+	Filename  string
 	Disabled  bool
 	Condition string
 }
@@ -137,6 +139,19 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 	startLine := max(0, breakpointLine-offset)
 	endLine := breakpointLine + offset
 
+	bps, err := d.GetBreakpoints()
+	if err != nil {
+		return "", fmt.Errorf("error getting current file content: error getting breakpoints: %s: %v", filename, err)
+	}
+
+	bpsInThisFile := make(map[int]Breakpoint, 0)
+	for _, bp := range bps {
+		if bp.Filename != d.currentFile.Name() {
+			continue
+		}
+		bpsInThisFile[bp.Line] = bp
+	}
+
 	lines := strings.Builder{}
 
 	for scanner.Scan() && currentLine < endLine {
@@ -146,9 +161,15 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 		}
 		lines.WriteString(fmt.Sprintf("%d", currentLine))
 		if currentLine == breakpointLine {
-			lines.WriteString(" => ")
+			lines.WriteString(" =>")
+		} else if bp, ok := bpsInThisFile[currentLine]; ok {
+			if bp.Disabled {
+				lines.WriteString(" [-] ")
+			} else {
+				lines.WriteString(" [+] ")
+			}
 		} else {
-			lines.WriteString("    ")
+			lines.WriteString("   ")
 		}
 
 		lines.WriteString(scanner.Text() + "\n")
@@ -264,6 +285,8 @@ func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
 	return Breakpoint{
 		ID:        bp.ID,
 		Name:      fmt.Sprintf("%s:%d", bp.File, bp.Line),
+		Line:      bp.Line,
+		Filename:  bp.File,
 		Disabled:  bp.Disabled,
 		Condition: bp.Cond,
 	}
