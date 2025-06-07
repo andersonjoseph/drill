@@ -1,7 +1,8 @@
 package messages
 
 type UpdateContent struct{}
-type DebuggerOutput string
+type DebuggerStdout string
+type DebuggerStderr string
 type Restart struct{}
 
 type FocusedWindow int

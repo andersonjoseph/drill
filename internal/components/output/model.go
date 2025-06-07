@@ -41,14 +41,23 @@ func New(id int, title string, d *debugger.Debugger) Model {
 	return m
 }
 
-func waitForOutput(c chan string) tea.Cmd {
+func waitForStdout(c chan string) tea.Cmd {
 	return func() tea.Msg {
-		return messages.DebuggerOutput(<-c)
+		return messages.DebuggerStdout(<-c)
+	}
+}
+
+func waitForStderr(c chan string) tea.Cmd {
+	return func() tea.Msg {
+		return messages.DebuggerStderr(<-c)
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return waitForOutput(m.debugger.Output)
+	return tea.Batch(
+		waitForStdout(m.debugger.Stdout),
+		waitForStderr(m.debugger.Stderr),
+	)
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -62,12 +71,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.viewport.SetContent(m.content)
 		return m, nil
 
-	case messages.DebuggerOutput:
+	case messages.DebuggerStdout:
 		m.content += "\n" + string(msg)
 		m.viewport.SetContent(m.content)
 		m.viewport.ScrollDown(1)
 
-		return m, waitForOutput(m.debugger.Output)
+		return m, waitForStdout(m.debugger.Stdout)
+
+	case messages.DebuggerStderr:
+		m.content += "\n" + string(msg)
+		m.viewport.SetContent(m.content)
+		m.viewport.ScrollDown(1)
+
+		return m, waitForStderr(m.debugger.Stderr)
 
 	case tea.WindowSizeMsg:
 		m.viewport.Width = m.Width

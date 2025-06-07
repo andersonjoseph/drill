@@ -20,6 +20,7 @@ type Variable struct {
 	Name  string
 	Value string
 }
+
 type Breakpoint struct {
 	ID        int
 	Name      string
@@ -30,7 +31,8 @@ type Breakpoint struct {
 type Debugger struct {
 	Client      *rpc2.RPCClient
 	ready       chan string
-	Output      chan string
+	Stdout      chan string
+	Stderr      chan string
 	lcfg        api.LoadConfig
 	currentFile *os.File
 }
@@ -38,7 +40,7 @@ type Debugger struct {
 func New(filename string) (*Debugger, error) {
 	d := &Debugger{
 		ready:  make(chan string),
-		Output: make(chan string),
+		Stdout: make(chan string),
 		lcfg: api.LoadConfig{
 			FollowPointers:     true,
 			MaxVariableRecurse: 4,
@@ -67,9 +69,16 @@ func (d *Debugger) startProcess(filename string) error {
 		return fmt.Errorf("error creating stdout pipe: %w", err)
 	}
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		stdout.Close()
+		return fmt.Errorf("error creating stdout pipe: %w", err)
+	}
+
 	err = cmd.Start()
 	if err != nil {
 		stdout.Close()
+		stderr.Close()
 		return fmt.Errorf("error starting debugger process: %w", err)
 	}
 
@@ -84,7 +93,15 @@ func (d *Debugger) startProcess(filename string) error {
 				continue
 			}
 
-			d.Output <- scanner.Text()
+			d.Stdout <- scanner.Text()
+		}
+	}()
+
+	go func() {
+		defer stderr.Close()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			d.Stderr <- scanner.Text()
 		}
 	}()
 

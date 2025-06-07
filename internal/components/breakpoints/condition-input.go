@@ -83,10 +83,6 @@ func (m conditionInputModel) Update(msg tea.Msg) (conditionInputModel, tea.Cmd) 
 	return m, nil
 }
 
-func (m *conditionInputModel) content() string {
-	return m.textInput.Value()
-}
-
 func (m conditionInputModel) View() string {
 	title := listFocusedStyle.Render("Breakpoint Condition")
 	titleWidth := lipgloss.Width(title)

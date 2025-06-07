@@ -56,10 +56,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleResize(msg)
 		return m, nil
 
-	case messages.DebuggerOutput:
-		m.output, cmd = m.output.Update(msg)
-		return m, cmd
-
 	case tea.KeyMsg:
 		if m.focusedWindow != 0 && (msg.String() == "q" || msg.String() == "ctrl+c") {
 			return m, tea.Quit
