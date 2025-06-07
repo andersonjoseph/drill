@@ -27,8 +27,8 @@ var (
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
 
-	indicatorEnabled  = lipgloss.NewStyle().Foreground(components.ColorGreen).Render("[+] ")
-	indicatorDisabled = lipgloss.NewStyle().Foreground(components.ColorGrey).Render("[-] ")
+	indicatorEnabled  = lipgloss.NewStyle().Foreground(components.ColorRed).Render("⏺ ")
+	indicatorDisabled = lipgloss.NewStyle().Foreground(components.ColorGrey).Render("⏺ ")
 )
 
 type Model struct {

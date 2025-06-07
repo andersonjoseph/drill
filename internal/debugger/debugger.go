@@ -12,8 +12,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/andersonjoseph/drill/internal/components"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/go-delve/delve/service/api"
 	"github.com/go-delve/delve/service/rpc2"
+)
+
+const (
+	arrowSymbol         = " 🢂 "
+	breakpointDotSymbol = " ⏺ "
+)
+
+var (
+	enabledBreakpointDot  = lipgloss.NewStyle().Foreground(components.ColorRed).Render(breakpointDotSymbol)
+	disabledBreakpointDot = lipgloss.NewStyle().Foreground(components.ColorGrey).Render(breakpointDotSymbol)
+
+	arrow             = lipgloss.NewStyle().Foreground(components.ColorGreen).Render(arrowSymbol)
+	arrowInBreakpoint = lipgloss.NewStyle().Foreground(components.ColorRed).Render(arrowSymbol)
+
+	lineNumberStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
 )
 
 type Variable struct {
@@ -110,80 +128,120 @@ func (d *Debugger) startProcess(filename string) error {
 	return nil
 }
 
+func (d *Debugger) GetCurrentFile() (*os.File, error) {
+	state, err := d.Client.GetState()
+	if err != nil {
+		return nil, fmt.Errorf("error getting current file: debugger state: %w", err)
+	}
+
+	filename := state.CurrentThread.File
+	if d.currentFile == nil || d.currentFile.Name() != filename {
+		if d.currentFile != nil {
+			if err := d.currentFile.Close(); err != nil {
+				return nil, fmt.Errorf("error getting current file content: error closing file: %s: %w", filename, err)
+			}
+		}
+
+		f, err := os.Open(filename)
+		if err != nil {
+			return nil, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
+		}
+		d.currentFile = f
+	}
+
+	return d.currentFile, nil
+}
+
 func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 	state, err := d.Client.GetState()
 	if err != nil {
 		return "", fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
-	filename := state.CurrentThread.File
-	breakpointLine := state.CurrentThread.Line
-
-	if d.currentFile == nil || d.currentFile.Name() != filename {
-		if d.currentFile != nil {
-			if err := d.currentFile.Close(); err != nil {
-				return "", fmt.Errorf("error getting current file content: error closing file: %s: %w", filename, err)
-			}
-		}
-
-		f, err := os.Open(filename)
-		if err != nil {
-			return "", fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
-		}
-		d.currentFile = f
+	file, err := d.GetCurrentFile()
+	if err != nil {
+		return "", fmt.Errorf("error getting current file content: get current file: %w", err)
 	}
 
-	d.currentFile.Seek(0, 0)
-	scanner := bufio.NewScanner(d.currentFile)
-	currentLine := 0
-	startLine := max(0, breakpointLine-offset)
-	endLine := breakpointLine + offset
+	bps, err := d.getFileBreakpoints(file.Name())
+	if err != nil {
+		return "", fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
+	}
 
+	file.Seek(0, 0)
+	scanner := bufio.NewScanner(file)
+
+	line := 0
+
+	currentLine := state.CurrentThread.Line
+	startLine := max(0, currentLine-offset)
+	endLine := currentLine + offset
+
+	output := strings.Builder{}
+	for scanner.Scan() && line < endLine {
+		line++
+		if line < startLine {
+			continue
+		}
+
+		lineNumber := lineNumberStyle.Render(fmt.Sprintf("%d ", line))
+		output.WriteString(lineNumber)
+
+		bp, isBpInLine := bps[line]
+
+		if line == currentLine {
+			if isBpInLine && !bp.Disabled {
+				output.WriteString(arrowInBreakpoint)
+			} else {
+				output.WriteString(arrow)
+			}
+		} else if isBpInLine {
+			var dot string
+			if bp.Disabled {
+				dot = disabledBreakpointDot
+			} else {
+				dot = enabledBreakpointDot
+			}
+			output.WriteString(dot)
+		} else {
+			output.WriteString("   ")
+		}
+
+		line, err := colorize(scanner.Text())
+		if err != nil {
+			return "", fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
+		}
+
+		output.WriteString(line + "\n")
+	}
+
+	return output.String(), nil
+}
+
+func (d Debugger) getFileBreakpoints(filename string) (map[int]Breakpoint, error) {
+	bpsInThisFile := make(map[int]Breakpoint, 0)
 	bps, err := d.GetBreakpoints()
 	if err != nil {
-		return "", fmt.Errorf("error getting current file content: error getting breakpoints: %s: %v", filename, err)
+		return bpsInThisFile, fmt.Errorf("error getting current file content: error getting breakpoints: %s: %v", filename, err)
 	}
 
-	bpsInThisFile := make(map[int]Breakpoint, 0)
 	for _, bp := range bps {
-		if bp.Filename != d.currentFile.Name() {
+		if bp.Filename != filename {
 			continue
 		}
 		bpsInThisFile[bp.Line] = bp
 	}
 
-	lines := strings.Builder{}
-
-	for scanner.Scan() && currentLine < endLine {
-		currentLine++
-		if currentLine < startLine {
-			continue
-		}
-		lines.WriteString(fmt.Sprintf("%d", currentLine))
-		if currentLine == breakpointLine {
-			lines.WriteString(" =>")
-		} else if bp, ok := bpsInThisFile[currentLine]; ok {
-			if bp.Disabled {
-				lines.WriteString(" [-] ")
-			} else {
-				lines.WriteString(" [+] ")
-			}
-		} else {
-			lines.WriteString("   ")
-		}
-
-		lines.WriteString(scanner.Text() + "\n")
-	}
-
-	return lines.String(), nil
+	return bpsInThisFile, nil
 }
 
 func (d *Debugger) GetCurrentFilename() (string, error) {
-	if d.currentFile == nil {
-		return "", errors.New("error getting the current filename: currentFile is nil")
+	f, err := d.GetCurrentFile()
+	if err != nil {
+		return "", fmt.Errorf("error getting the current filename: %w", err)
 	}
 
-	return d.currentFile.Name(), nil
+	return f.Name(), nil
 }
 
 func (d Debugger) GetLocalVariables() ([]Variable, error) {
@@ -290,4 +348,15 @@ func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
 		Disabled:  bp.Disabled,
 		Condition: bp.Cond,
 	}
+}
+
+func colorize(content string) (string, error) {
+	sb := strings.Builder{}
+
+	err := quick.Highlight(&sb, content, "go", "terminal8", "native")
+	if err != nil {
+		return "", fmt.Errorf("error highlighting the source code: %w", err)
+	}
+
+	return sb.String(), nil
 }
