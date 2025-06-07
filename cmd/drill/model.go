@@ -40,9 +40,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case messages.Restart:
-		m.updateContent()
-		return m, nil
 
 	case messages.FocusedWindow:
 		cmd = m.updateFocus(int(msg))

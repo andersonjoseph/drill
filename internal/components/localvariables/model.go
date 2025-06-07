@@ -99,7 +99,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.list.Styles.NoItems = noItemsStyle.Width(m.Width)
 		return m, nil
 
-	case messages.UpdateContent:
+	case messages.UpdateContent, messages.Restart:
 		m.updateContent()
 		return m, nil
 

@@ -96,7 +96,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.conditionInput, _ = m.conditionInput.Update(tea.WindowSizeMsg{Width: m.Width})
 		return m, nil
 
-	case messages.UpdateContent:
+	case messages.UpdateContent, messages.Restart:
 		m.updateContent()
 		return m, nil
 
