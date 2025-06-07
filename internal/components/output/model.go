@@ -80,6 +80,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "c" {
+			m.content = ""
+			m.viewport.SetContent(m.content)
+			return m, nil
+		}
+
 		var cmd tea.Cmd
 		var cmds []tea.Cmd
 
