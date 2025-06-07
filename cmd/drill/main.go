@@ -12,7 +12,6 @@ import (
 	"github.com/andersonjoseph/drill/internal/components/output"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
 	"github.com/andersonjoseph/drill/internal/debugger"
-	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -43,8 +42,7 @@ func main() {
 	}
 	defer debugger.Client.Disconnect(false)
 	m := model{
-		focusedWindow: 3,
-		debugger:      debugger,
+		debugger: debugger,
 		sidebar: sidebar{
 			localVariables: localvariables.New(1, debugger),
 			breakpoints:    breakpoints.New(2, debugger),
@@ -52,7 +50,6 @@ func main() {
 		sourceCode: sourcecode.New(3, "Source Code", debugger),
 		output:     output.New(4, "Output", debugger),
 	}
-	m.sourceCode.Update(messages.IsFocused(true))
 
 	if bp != "" {
 		filename, line, err := parseEntryBreakpoint(bp)

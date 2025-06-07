@@ -26,7 +26,13 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return m.output.Init()
+	return tea.Batch(
+		func() tea.Msg {
+			return messages.FocusedWindow(3)
+
+		},
+		m.output.Init(),
+	)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -39,8 +45,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case messages.FocusedWindow:
-		m.focusedWindow = int(msg)
-		return m, nil
+		cmd = m.updateFocus(int(msg))
+		return m, cmd
 
 	case messages.UpdateContent:
 		m.updateContent()
@@ -60,23 +66,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.focusedWindow != 0 {
-			if id, err := strconv.Atoi(msg.String()); err == nil {
-				m.focusedWindow = id
-
-				m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.IsFocused(m.focusedWindow == m.sidebar.localVariables.ID))
-				cmds = append(cmds, cmd)
-
-				m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.IsFocused(m.focusedWindow == m.sidebar.breakpoints.ID))
-				cmds = append(cmds, cmd)
-
-				m.sourceCode, cmd = m.sourceCode.Update(messages.IsFocused(m.focusedWindow == m.sourceCode.ID))
-				cmds = append(cmds, cmd)
-
-				m.output, cmd = m.output.Update(messages.IsFocused(m.focusedWindow == m.output.ID))
-				cmds = append(cmds, cmd)
-
-				m.bubbleUpComponentErrors()
-				return m, tea.Batch(cmds...)
+			if focusedWindow, err := strconv.Atoi(msg.String()); err == nil {
+				m.updateFocus(focusedWindow)
 			}
 		}
 
@@ -112,6 +103,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.bubbleUpComponentErrors()
 		return m, tea.Batch(cmds...)
 	}
+}
+
+func (m *model) updateFocus(focusedWindow int) tea.Cmd {
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
+	m.focusedWindow = focusedWindow
+
+	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.IsFocused(m.focusedWindow == m.sidebar.localVariables.ID))
+	cmds = append(cmds, cmd)
+
+	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.IsFocused(m.focusedWindow == m.sidebar.breakpoints.ID))
+	cmds = append(cmds, cmd)
+
+	m.sourceCode, cmd = m.sourceCode.Update(messages.IsFocused(m.focusedWindow == m.sourceCode.ID))
+	cmds = append(cmds, cmd)
+
+	m.output, cmd = m.output.Update(messages.IsFocused(m.focusedWindow == m.output.ID))
+	cmds = append(cmds, cmd)
+
+	m.bubbleUpComponentErrors()
+	return tea.Batch(cmds...)
 }
 
 func (m *model) bubbleUpComponentErrors() {
