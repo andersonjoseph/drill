@@ -110,6 +110,39 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			return m, func() tea.Msg { return messages.Restart{} }
 
+		case "b":
+			currentLine := m.viewport.GetCurrentLineNumber()
+			if _, err := m.debugger.CreateBreakpoint(m.currentFilename, currentLine); err != nil {
+
+				if strings.Contains(err.Error(), "Breakpoint exists") {
+					filename, err := m.debugger.GetCurrentFilename()
+					if err != nil {
+						return m, func() tea.Msg {
+							return messages.Error(fmt.Errorf("error creating breakpoint: getCurrentFilename %w", err))
+						}
+					}
+					bps, err := m.debugger.GetFileBreakpoints(filename)
+					if err != nil {
+						return m, func() tea.Msg {
+							return messages.Error(fmt.Errorf("error creating breakpoint: getFileBreakpoints %w", err))
+						}
+					}
+
+					m.debugger.ClearBreakpoint(bps[currentLine].ID)
+
+					return m, func() tea.Msg {
+						return messages.UpdateContent{}
+					}
+				}
+
+				return m, func() tea.Msg {
+					return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
+				}
+			}
+			return m, func() tea.Msg {
+				return messages.UpdateContent{}
+			}
+
 		default:
 			var cmd tea.Cmd
 			m.viewport, cmd = m.viewport.Update(msg)
@@ -142,7 +175,7 @@ func (m *Model) updateContent() error {
 		return fmt.Errorf("error updating content: %w", err)
 	}
 
-	m.viewport.setContent(strings.Split(content, "\n"))
+	m.viewport.setContent(content)
 
 	m.currentFilename, err = m.debugger.GetCurrentFilename()
 	if err != nil {

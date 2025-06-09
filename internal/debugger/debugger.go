@@ -152,64 +152,64 @@ func (d *Debugger) GetCurrentFile() (*os.File, error) {
 	return d.currentFile, nil
 }
 
-func (d *Debugger) GetCurrentFileContent() (string, error) {
+func (d *Debugger) GetCurrentFileContent() ([]string, error) {
 	state, err := d.Client.GetState()
 	if err != nil {
-		return "", fmt.Errorf("error getting current file content: debugger state: %w", err)
+		return nil, fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
 	file, err := d.GetCurrentFile()
 	if err != nil {
-		return "", fmt.Errorf("error getting current file content: get current file: %w", err)
+		return nil, fmt.Errorf("error getting current file content: get current file: %w", err)
 	}
 
-	bps, err := d.getFileBreakpoints(file.Name())
+	bps, err := d.GetFileBreakpoints(file.Name())
 	if err != nil {
-		return "", fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
+		return nil, fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
 	}
 
 	file.Seek(0, 0)
 	scanner := bufio.NewScanner(file)
 
 	line := 0
-
 	currentLine := state.CurrentThread.Line
 
-	output := strings.Builder{}
+	var lines []string // Use slice instead of strings.Builder
+
 	for scanner.Scan() {
 		line++
 		bp, isBpInLine := bps[line]
 
+		var prefix string
 		if line == currentLine {
 			if isBpInLine && !bp.Disabled {
-				output.WriteString(arrowInBreakpoint)
+				prefix = arrowInBreakpoint
 			} else {
-				output.WriteString(arrow)
+				prefix = arrow
 			}
 		} else if isBpInLine {
-			var dot string
 			if bp.Disabled {
-				dot = disabledBreakpointDot
+				prefix = disabledBreakpointDot
 			} else {
-				dot = enabledBreakpointDot
+				prefix = enabledBreakpointDot
 			}
-			output.WriteString(dot)
 		} else {
-			output.WriteString("   ")
+			prefix = "   "
 		}
 
-		line, err := colorize(scanner.Text())
+		colorizedLine, err := colorize(scanner.Text())
 		if err != nil {
-			return "", fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
+			return nil, fmt.Errorf("error colorizing line: %v", err)
 		}
 
-		output.WriteString(line + "\n")
+		cleanColorizedLine := strings.ReplaceAll(colorizedLine, "\n", "")
+		lines = append(lines, prefix+cleanColorizedLine)
 	}
 
-	return output.String(), nil
+	return lines, nil
 }
 
-func (d Debugger) getFileBreakpoints(filename string) (map[int]Breakpoint, error) {
+func (d Debugger) GetFileBreakpoints(filename string) (map[int]Breakpoint, error) {
 	bpsInThisFile := make(map[int]Breakpoint, 0)
 	bps, err := d.GetBreakpoints()
 	if err != nil {

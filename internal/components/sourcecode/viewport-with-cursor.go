@@ -144,7 +144,9 @@ func (m *viewportWithCursorModel) updateContent() {
 			lineNumber = cursorStyle.Render(lineNumber)
 		}
 
-		lines = append(lines, lineNumber+line)
+		// Reset ANSI codes at the end of each line to prevent bleeding
+		cleanLine := line + "\033[0m"
+		lines = append(lines, lineNumber+cleanLine)
 	}
 
 	m.viewport.SetContent(strings.Join(lines, "\n"))
