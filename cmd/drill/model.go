@@ -66,7 +66,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		if m.focusedWindow != 0 {
+		if m.focusedWindow != 0 && msg.String() != "0" {
 			if focusedWindow, err := strconv.Atoi(msg.String()); err == nil {
 				m.updateFocus(focusedWindow)
 			}
