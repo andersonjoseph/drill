@@ -30,9 +30,13 @@ func (m errMsgModel) Update(msg tea.Msg) (errMsgModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.Error:
 		m.error = msg
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		return m, nil
 	}
+
 	return m, nil
 }
 

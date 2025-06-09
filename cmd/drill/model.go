@@ -84,6 +84,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.output, cmd = m.output.Update(msg)
 		cmds = append(cmds, cmd)
 
+		m.sidebar.errorMessage.error = nil
+
 		return m, tea.Batch(cmds...)
 
 	default:
