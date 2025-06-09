@@ -12,6 +12,7 @@ import (
 	"github.com/andersonjoseph/drill/internal/components/output"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
 	"github.com/andersonjoseph/drill/internal/debugger"
+	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -65,7 +66,7 @@ func main() {
 		}
 		if autoContinue {
 			<-debugger.Client.Continue()
-			m.updateContent()
+			m.Update(messages.UpdateContent{})
 		}
 	}
 

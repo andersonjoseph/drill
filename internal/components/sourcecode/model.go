@@ -31,8 +31,8 @@ type Model struct {
 	currentFilename string
 	IsFocused       bool
 	cursor          int
-	Width           int
-	Height          int
+	width           int
+	height          int
 	viewport        viewportWithCursorModel
 	debugger        *debugger.Debugger
 }
@@ -55,12 +55,25 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		m.IsFocused = bool(msg)
 		m.viewport, cmd = m.viewport.Update(msg)
-	return m, cmd
+		return m, cmd
 
-	case messages.UpdateContent, tea.WindowSizeMsg:
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, cmd
+
+	case messages.UpdateContent:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg { return messages.Error(err) }
 		}
+
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+
+		return m, cmd
 
 	case tea.KeyMsg:
 		if !m.IsFocused {
@@ -76,7 +89,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return messages.Error(fmt.Errorf("error stepping over: %w", err))
 				}
 			}
-
 
 			m.viewport.jumpToLine(debuggerState.CurrentThread.Line)
 			return m, func() tea.Msg { return messages.UpdateContent{} }
@@ -115,12 +127,12 @@ func (m Model) View() string {
 	}
 
 	title := fmt.Sprintf("[%d] %s [%s]", m.ID, m.title, m.currentFilename)
-	topBorder := "┌" + title + strings.Repeat("─", max(m.Width-len(title), 1)) + "┐"
+	topBorder := "┌" + title + strings.Repeat("─", max(m.width-len(title), 1)) + "┐"
 
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
 		style.Border(lipgloss.Border{}).Render(topBorder),
-		style.Height(m.Height).Width(m.Width).Render(m.viewport.View()),
+		style.Height(m.height).Width(m.width).Render(m.viewport.View()),
 	)
 }
 
@@ -131,11 +143,6 @@ func (m *Model) updateContent() error {
 	}
 
 	m.viewport.setContent(strings.Split(content, "\n"))
-
-	m.viewport.height = m.Height
-	m.viewport.width = m.Width
-
-	m.viewport.updateContent()
 
 	m.currentFilename, err = m.debugger.GetCurrentFilename()
 	if err != nil {

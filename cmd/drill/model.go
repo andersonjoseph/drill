@@ -28,6 +28,10 @@ type model struct {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
+			return messages.UpdateContent{}
+
+		},
+		func() tea.Msg {
 			return messages.FocusedWindow(3)
 
 		},
@@ -45,16 +49,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case messages.FocusedWindow:
-		cmd = m.updateFocus(int(msg))
-		return m, cmd
+		return m, m.updateFocus(int(msg))
 
 	case messages.UpdateContent:
-		m.updateContent()
-		return m, nil
+		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.UpdateContent{})
+		cmds = append(cmds, cmd)
+
+		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.UpdateContent{})
+		cmds = append(cmds, cmd)
+
+		m.sourceCode, cmd = m.sourceCode.Update(messages.UpdateContent{})
+		cmds = append(cmds, cmd)
+
+		return m, tea.Batch(cmds...)
 
 	case tea.WindowSizeMsg:
-		m.handleResize(msg)
-		return m, nil
+		return m, m.handleResize(msg)
 
 	case tea.KeyMsg:
 		if m.focusedWindow != 0 && (msg.String() == "q" || msg.String() == "ctrl+c") {
@@ -121,6 +131,7 @@ func (m *model) updateFocus(focusedWindow int) tea.Cmd {
 }
 
 func (m model) viewErrMessage() string {
+	//TODO: move this to its own component
 	if m.error == nil {
 		return ""
 	}
@@ -137,14 +148,13 @@ func (m model) viewErrMessage() string {
 	}
 
 	title := "Attention"
-	topBorder := "┌" + title + strings.Repeat("─", max(m.sidebar.width-len(title), 1)) + "┐"
-
+	topBorder := "┌" + title + strings.Repeat("─", max(30-len(title), 1)) + "┐"
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
 		style.Render(topBorder),
 		style.
 			Border(lipgloss.NormalBorder()).
-			Width(m.sidebar.width).
+			Width(30).
 			BorderTop(false).
 			BorderForeground().
 			Render(msg),
@@ -171,29 +181,28 @@ func (m model) View() string {
 	)
 }
 
-func (m *model) updateContent() {
-	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(messages.UpdateContent{})
-	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.UpdateContent{})
-	m.sourceCode, _ = m.sourceCode.Update(messages.UpdateContent{})
+func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
 
-}
+	sidebarWidth, sidebarHeight := m.sidebar.calcSize(msg.Width, msg.Height)
 
-func (m *model) handleResize(msg tea.WindowSizeMsg) {
-	m.sidebar.calcSize(msg.Width, msg.Height)
+	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	cmds = append(cmds, cmd)
 
-	m.sidebar.localVariables.Width = m.sidebar.width
-	m.sidebar.localVariables.Height = m.sidebar.height
-	m.sidebar.localVariables, _ = m.sidebar.localVariables.Update(msg)
+	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	cmds = append(cmds, cmd)
 
-	m.sidebar.breakpoints.Width = m.sidebar.width
-	m.sidebar.breakpoints.Height = m.sidebar.height
-	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(msg)
+	sourceCodeHeight := max((msg.Height)-10, 5)
+	sourceCodeWidth := (msg.Width - sidebarWidth) - 4
 
-	m.sourceCode.Height = max((msg.Height)-10, 5)
-	m.sourceCode.Width = (msg.Width - m.sidebar.width) - 4
-	m.sourceCode, _ = m.sourceCode.Update(msg)
+	m.sourceCode, cmd = m.sourceCode.Update(tea.WindowSizeMsg{Width: sourceCodeWidth, Height: sourceCodeHeight})
+	cmds = append(cmds, cmd)
 
-	m.output.Height = max((msg.Height-m.sourceCode.Height)-5, 2)
-	m.output.Width = (msg.Width - m.sidebar.width) - 4
-	m.output, _ = m.output.Update(msg)
+	outputHeight := max((msg.Height-sourceCodeHeight)-5, 2)
+	outputWidth := (msg.Width - sidebarWidth) - 4
+	m.output, cmd = m.output.Update(tea.WindowSizeMsg{Width: outputWidth, Height: outputHeight})
+	cmds = append(cmds, cmd)
+
+	return tea.Batch(cmds...)
 }

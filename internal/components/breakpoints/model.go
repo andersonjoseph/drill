@@ -35,8 +35,8 @@ type Model struct {
 	ID             int
 	title          string
 	IsFocused      bool
-	Width          int
-	Height         int
+	width          int
+	height         int
 	list           list.Model
 	debugger       *debugger.Debugger
 	conditionInput conditionInputModel
@@ -88,11 +88,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.WindowSizeMsg:
-		m.list.SetHeight(m.Height)
-		m.list.SetWidth(m.Width)
-		m.list.Styles.NoItems = noItemsStyle.Width(m.Width)
+		m.height = msg.Height
+		m.width = msg.Width
+		m.list.SetHeight(msg.Height)
+		m.list.SetWidth(msg.Width)
+		m.list.Styles.NoItems = noItemsStyle.Width(msg.Width)
 
-		m.conditionInput, _ = m.conditionInput.Update(tea.WindowSizeMsg{Width: m.Width})
+		m.conditionInput, _ = m.conditionInput.Update(tea.WindowSizeMsg{Width: m.width})
 		return m, nil
 
 	case messages.UpdateContent, messages.Restart:
@@ -194,7 +196,7 @@ func (m Model) View() string {
 
 	title := style.Render(fmt.Sprintf("[%d] %s", m.ID, m.title))
 	titleWidth := lipgloss.Width(title)
-	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(m.Width-titleWidth, 1))) + style.Render("┐")
+	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(m.width-titleWidth, 1))) + style.Render("┐")
 
 	return lipgloss.JoinVertical(lipgloss.Top,
 		topBorder,

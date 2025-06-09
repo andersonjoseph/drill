@@ -22,8 +22,8 @@ type Model struct {
 	IsFocused bool
 	title     string
 	content   string
-	Width     int
-	Height    int
+	width     int
+	height    int
 	viewport  viewport.Model
 	debugger  *debugger.Debugger
 }
@@ -85,8 +85,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, waitForStderr(m.debugger.Stderr)
 
 	case tea.WindowSizeMsg:
-		m.viewport.Width = m.Width
-		m.viewport.Height = m.Height
+		m.width = msg.Width
+		m.height = msg.Height
+
+		m.viewport.Width = m.width
+		m.viewport.Height = m.height
 
 		return m, nil
 
@@ -121,10 +124,10 @@ func (m Model) View() string {
 	}
 
 	title := fmt.Sprintf("[%d] %s", m.ID, m.title)
-	topBorder := "┌" + title + strings.Repeat("─", max(m.Width-len(title), 1)) + "┐"
+	topBorder := "┌" + title + strings.Repeat("─", max(m.width-len(title), 1)) + "┐"
 
 	scrollPercent := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))
-	bottomBorder := "└" + strings.Repeat("─", max(m.Width-len(scrollPercent), 1)) + scrollPercent + "┘"
+	bottomBorder := "└" + strings.Repeat("─", max(m.width-len(scrollPercent), 1)) + scrollPercent + "┘"
 
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
@@ -134,8 +137,8 @@ func (m Model) View() string {
 			BorderTop(false).
 			BorderBottom(false).
 			BorderForeground(style.GetForeground()).
-			Height(m.Height).
-			Width(m.Width).
+			Height(m.height).
+			Width(m.width).
 			Render(listDefaultStyle.Render(m.viewport.View())),
 		style.Render(bottomBorder),
 	)

@@ -8,18 +8,15 @@ import (
 type sidebar struct {
 	localVariables localvariables.Model
 	breakpoints    breakpoints.Model
-	width          int
-	height         int
 }
 
-func (s *sidebar) calcSize(w, h int) {
+func (s *sidebar) calcSize(w, h int) (int, int) {
 	w = w / 2
 	if w >= 50 {
 		w = 50
 	} else if w <= 20 {
 		w = 20
 	}
-	s.width = w
 
 	h = h / 4
 	if h >= 15 {
@@ -27,5 +24,6 @@ func (s *sidebar) calcSize(w, h int) {
 	} else if h <= 3 {
 		h = 3
 	}
-	s.height = h
+
+	return w, h
 }

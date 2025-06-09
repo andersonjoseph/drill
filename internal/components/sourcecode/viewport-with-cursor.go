@@ -19,12 +19,12 @@ var (
 )
 
 type viewportWithCursorModel struct {
-	isFocused       bool
-	width    int
-	height   int
-	cursor   int
-	viewport viewport.Model
-	content  []string
+	isFocused bool
+	width     int
+	height    int
+	cursor    int
+	viewport  viewport.Model
+	content   []string
 }
 
 func newViewportWithCursor() viewportWithCursorModel {
@@ -39,6 +39,16 @@ func (m viewportWithCursorModel) Init() tea.Cmd {
 
 func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case messages.UpdateContent:
+		m.updateContent()
+		return m, nil
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.updateContent()
+		return m, nil
+
 	case messages.IsFocused:
 		m.isFocused = bool(msg)
 		m.updateContent()
@@ -99,14 +109,14 @@ func (m *viewportWithCursorModel) jumpToLine(index int) {
 	if len(m.content) == 0 {
 		return
 	}
-	
+
 	if index < 0 {
 		index = 0
 	} else if index >= len(m.content) {
 		index = len(m.content) - 1
 	}
-	
-	m.cursor = index+1
+
+	m.cursor = index + 1
 	m.ensureCursorVisible()
 	m.updateContent()
 }
@@ -134,7 +144,7 @@ func (m *viewportWithCursorModel) updateContent() {
 			lineNumber = cursorStyle.Render(lineNumber)
 		}
 
-		lines = append(lines, lineNumber + line)
+		lines = append(lines, lineNumber+line)
 	}
 
 	m.viewport.SetContent(strings.Join(lines, "\n"))
