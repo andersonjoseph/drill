@@ -2,9 +2,7 @@ package main
 
 import (
 	"strconv"
-	"strings"
 
-	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/components/output"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
 	"github.com/andersonjoseph/drill/internal/debugger"
@@ -13,15 +11,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var warningStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorOrange).BorderForeground(components.ColorOrange)
-
 type model struct {
 	sidebar       sidebar
 	sourceCode    sourcecode.Model
 	output        output.Model
 	debugger      *debugger.Debugger
 	logs          []string
-	error         error
 	focusedWindow int
 }
 
@@ -45,8 +40,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.Error:
-		m.error = msg
-		return m, nil
+		m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(msg)
+		return m, cmd
 
 	case messages.FocusedWindow:
 		return m, m.updateFocus(int(msg))
@@ -89,7 +84,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.output, cmd = m.output.Update(msg)
 		cmds = append(cmds, cmd)
 
-		m.error = nil
 		return m, tea.Batch(cmds...)
 
 	default:
@@ -130,37 +124,6 @@ func (m *model) updateFocus(focusedWindow int) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m model) viewErrMessage() string {
-	//TODO: move this to its own component
-	if m.error == nil {
-		return ""
-	}
-
-	msg := m.error.Error()
-	style := warningStyle
-
-	if strings.Contains(msg, "has exited with status 0") {
-		msg = "debug session ended press r to reset or q to quit"
-	}
-
-	if strings.Contains(msg, "error evaluating expression:") {
-		msg = "breakpoint condition failed:" + strings.Split(msg, "error evaluating expression:")[1]
-	}
-
-	title := "Attention"
-	topBorder := "┌" + title + strings.Repeat("─", max(30-len(title), 1)) + "┐"
-	return lipgloss.JoinVertical(
-		lipgloss.Top,
-		style.Render(topBorder),
-		style.
-			Border(lipgloss.NormalBorder()).
-			Width(30).
-			BorderTop(false).
-			BorderForeground().
-			Render(msg),
-	)
-}
-
 func (m model) View() string {
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
@@ -170,7 +133,7 @@ func (m model) View() string {
 				lipgloss.Top,
 				m.sidebar.localVariables.View(),
 				m.sidebar.breakpoints.View(),
-				m.viewErrMessage(),
+				m.sidebar.errorMessage.View(),
 			),
 			lipgloss.JoinVertical(
 				lipgloss.Top,
@@ -191,6 +154,9 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 	cmds = append(cmds, cmd)
 
 	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	cmds = append(cmds, cmd)
+
+	m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
 	cmds = append(cmds, cmd)
 
 	sourceCodeHeight := max((msg.Height)-10, 5)

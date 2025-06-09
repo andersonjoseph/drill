@@ -8,6 +8,7 @@ import (
 type sidebar struct {
 	localVariables localvariables.Model
 	breakpoints    breakpoints.Model
+	errorMessage   errMsgModel
 }
 
 func (s *sidebar) calcSize(w, h int) (int, int) {
