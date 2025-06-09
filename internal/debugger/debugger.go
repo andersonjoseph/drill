@@ -49,7 +49,7 @@ type Breakpoint struct {
 }
 
 type Debugger struct {
-	Client      *rpc2.RPCClient
+	client      *rpc2.RPCClient
 	ready       chan string
 	Stdout      chan string
 	Stderr      chan string
@@ -73,7 +73,7 @@ func New(filename string) (*Debugger, error) {
 
 	select {
 	case addr := <-d.ready:
-		d.Client = rpc2.NewClient(addr)
+		d.client = rpc2.NewClient(addr)
 	case <-time.After(time.Second * 10):
 		return nil, errors.New("timeout")
 	}
@@ -129,7 +129,7 @@ func (d *Debugger) startProcess(filename string) error {
 }
 
 func (d *Debugger) GetCurrentFile() (*os.File, error) {
-	state, err := d.Client.GetState()
+	state, err := d.client.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current file: debugger state: %w", err)
 	}
@@ -153,7 +153,7 @@ func (d *Debugger) GetCurrentFile() (*os.File, error) {
 }
 
 func (d *Debugger) GetCurrentFileContent() ([]string, error) {
-	state, err := d.Client.GetState()
+	state, err := d.client.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
@@ -236,12 +236,12 @@ func (d *Debugger) GetCurrentFilename() (string, error) {
 }
 
 func (d Debugger) GetLocalVariables() ([]Variable, error) {
-	state, err := d.Client.GetState()
+	state, err := d.client.GetState()
 	if err != nil {
 		return []Variable{}, fmt.Errorf("eerror getting local variables: debugger state: %w", err)
 	}
 
-	vars, err := d.Client.ListLocalVariables(
+	vars, err := d.client.ListLocalVariables(
 		api.EvalScope{
 			GoroutineID: state.CurrentThread.GoroutineID,
 		}, d.lcfg)
@@ -261,7 +261,7 @@ func (d Debugger) GetLocalVariables() ([]Variable, error) {
 }
 
 func (d Debugger) GetBreakpoints() ([]Breakpoint, error) {
-	bps, err := d.Client.ListBreakpoints(false)
+	bps, err := d.client.ListBreakpoints(false)
 	if err != nil {
 		return []Breakpoint{}, fmt.Errorf("error getting breakpoints: %w", err)
 	}
@@ -276,7 +276,7 @@ func (d Debugger) GetBreakpoints() ([]Breakpoint, error) {
 }
 
 func (d Debugger) CreateBreakpoint(filename string, line int) (Breakpoint, error) {
-	bp, err := d.Client.CreateBreakpoint(&api.Breakpoint{
+	bp, err := d.client.CreateBreakpoint(&api.Breakpoint{
 		Line: line,
 		File: filename,
 	})
@@ -288,7 +288,7 @@ func (d Debugger) CreateBreakpoint(filename string, line int) (Breakpoint, error
 }
 
 func (d Debugger) CreateBreakpointNow() (Breakpoint, error) {
-	state, err := d.Client.GetState()
+	state, err := d.client.GetState()
 	if err != nil {
 		return Breakpoint{}, fmt.Errorf("error creating breakpoint: debugger state: %w", err)
 	}
@@ -297,14 +297,14 @@ func (d Debugger) CreateBreakpointNow() (Breakpoint, error) {
 }
 
 func (d Debugger) AddConditionToBreakpoint(id int, cond string) (Breakpoint, error) {
-	bp, err := d.Client.GetBreakpoint(id)
+	bp, err := d.client.GetBreakpoint(id)
 	if err != nil {
 		return Breakpoint{}, fmt.Errorf("error adding breakpoint condition: getting breakpoint: %w", err)
 	}
 
 	bp.Cond = cond
 
-	err = d.Client.AmendBreakpoint(bp)
+	err = d.client.AmendBreakpoint(bp)
 	if err != nil {
 		return Breakpoint{}, fmt.Errorf("error adding condition to breakpoint: amend breakpoint: %w", err)
 	}
@@ -313,7 +313,7 @@ func (d Debugger) AddConditionToBreakpoint(id int, cond string) (Breakpoint, err
 }
 
 func (d Debugger) ToggleBreakpoint(id int) error {
-	_, err := d.Client.ToggleBreakpoint(id)
+	_, err := d.client.ToggleBreakpoint(id)
 	if err != nil {
 		return fmt.Errorf("error toggling breakpoint: %w", err)
 	}
@@ -322,12 +322,49 @@ func (d Debugger) ToggleBreakpoint(id int) error {
 }
 
 func (d Debugger) ClearBreakpoint(id int) error {
-	_, err := d.Client.ClearBreakpoint(id)
+	_, err := d.client.ClearBreakpoint(id)
 	if err != nil {
 		return fmt.Errorf("error clearing breakpoint: %w", err)
 	}
 
 	return nil
+}
+
+func (d Debugger) Next() error {
+	_, err := d.client.Next()
+
+	if err != nil {
+		return fmt.Errorf("error stepping over: %w", err)
+	}
+
+	return nil
+}
+
+func (d Debugger) Continue() {
+	<-d.client.Continue()
+}
+
+func (d Debugger) Restart() error {
+	_, err := d.client.Restart(false)
+
+	if err != nil {
+		return fmt.Errorf("error restarting process: %w", err)
+	}
+
+	return nil
+}
+
+func (d Debugger) Close() error {
+	return fmt.Errorf("error closing debugger: %w", d.client.Disconnect(false))
+}
+
+func (d Debugger) GetCurrentLine() (int, error) {
+	state, err := d.client.GetState()
+	if err != nil {
+		return 0, fmt.Errorf("error getting current state: %w", err)
+	}
+
+	return state.CurrentThread.Line, nil
 }
 
 func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {

@@ -83,24 +83,38 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch msg.String() {
 
 		case "n":
-			debuggerState, err := m.debugger.Client.Next()
+			err := m.debugger.Next()
 			if err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(fmt.Errorf("error stepping over: %w", err))
 				}
 			}
 
-			m.viewport.jumpToLine(debuggerState.CurrentThread.Line)
+			line, err := m.debugger.GetCurrentLine()
+			if err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(fmt.Errorf("error stepping over: %w", err))
+				}
+			}
+
+			m.viewport.jumpToLine(line)
 			return m, func() tea.Msg { return messages.UpdateContent{} }
 
 		case "c":
-			debuggerState := <-m.debugger.Client.Continue()
-			m.viewport.jumpToLine(debuggerState.CurrentThread.Line)
+			m.debugger.Continue()
+			line, err := m.debugger.GetCurrentLine()
+			if err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(fmt.Errorf("error continuing execution: %w", err))
+				}
+			}
+
+			m.viewport.jumpToLine(line)
 
 			return m, func() tea.Msg { return messages.UpdateContent{} }
 
 		case "r":
-			if _, err := m.debugger.Client.Restart(false); err != nil {
+			if err := m.debugger.Restart(); err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(fmt.Errorf("error restarting: %w", err))
 				}

@@ -41,7 +41,7 @@ func main() {
 		fmt.Println("Error creating debugger", err)
 		os.Exit(1)
 	}
-	defer debugger.Client.Disconnect(false)
+	defer debugger.Close()
 	m := model{
 		debugger: debugger,
 		sidebar: sidebar{
@@ -65,7 +65,7 @@ func main() {
 			os.Exit(1)
 		}
 		if autoContinue {
-			<-debugger.Client.Continue()
+			debugger.Continue()
 			m.Update(messages.UpdateContent{})
 		}
 	}
