@@ -48,6 +48,24 @@ type Breakpoint struct {
 	Condition string
 }
 
+type StackFrame struct {
+	Index        int
+	FunctionName string
+	Filename     string
+	Line         int
+	Error        string
+}
+
+func newStackFrame(sf api.Stackframe, i int) StackFrame {
+	return StackFrame{
+		Index:        i,
+		FunctionName: sf.Function.Name(),
+		Filename:     sf.File,
+		Line:         sf.Line,
+		Error:        sf.Err,
+	}
+}
+
 type Debugger struct {
 	client      *rpc2.RPCClient
 	ready       chan string
@@ -258,6 +276,30 @@ func (d Debugger) LocalVariables() ([]Variable, error) {
 	}
 
 	return localVariables, nil
+}
+
+func (d Debugger) CallStack() ([]StackFrame, error) {
+	state, err := d.client.GetState()
+	if err != nil {
+		return nil, fmt.Errorf("error getting call stack: debugger state: %w", err)
+	}
+
+	stack, err := d.client.Stacktrace(
+		state.CurrentThread.GoroutineID,
+		50, api.StacktraceSimple,
+		&api.LoadConfig{MaxStringLen: 64, MaxStructFields: 3},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error getting call stack: stacktrace: %w", err)
+	}
+
+	frames := make([]StackFrame, len(stack))
+
+	for i := len(stack) - 1; i >= 0; i-- {
+		frames[i] = newStackFrame(stack[i], i)
+	}
+
+	return frames, nil
 }
 
 func (d Debugger) Breakpoints() ([]Breakpoint, error) {

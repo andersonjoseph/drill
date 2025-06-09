@@ -2,12 +2,14 @@ package main
 
 import (
 	"github.com/andersonjoseph/drill/internal/components/breakpoints"
+	"github.com/andersonjoseph/drill/internal/components/callstack"
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
 )
 
 type sidebar struct {
 	localVariables localvariables.Model
 	breakpoints    breakpoints.Model
+	callstack      callstack.Model
 	errorMessage   errMsgModel
 }
 
@@ -20,8 +22,8 @@ func (s *sidebar) calcSize(w, h int) (int, int) {
 	}
 
 	h = h / 4
-	if h >= 15 {
-		h = 15
+	if h >= 10 {
+		h = 10
 	} else if h <= 3 {
 		h = 3
 	}

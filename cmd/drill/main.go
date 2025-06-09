@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components/breakpoints"
+	"github.com/andersonjoseph/drill/internal/components/callstack"
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
 	"github.com/andersonjoseph/drill/internal/components/output"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
@@ -47,9 +48,10 @@ func main() {
 		sidebar: sidebar{
 			localVariables: localvariables.New(1, debugger),
 			breakpoints:    breakpoints.New(2, debugger),
+			callstack:      callstack.New(3, debugger),
 		},
-		sourceCode: sourcecode.New(3, "Source Code", debugger),
-		output:     output.New(4, "Output", debugger),
+		sourceCode: sourcecode.New(4, "Source Code", debugger),
+		output:     output.New(5, "Output", debugger),
 	}
 
 	if bp != "" {

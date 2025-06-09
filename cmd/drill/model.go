@@ -27,7 +27,7 @@ func (m model) Init() tea.Cmd {
 
 		},
 		func() tea.Msg {
-			return messages.FocusedWindow(3)
+			return messages.FocusedWindow(4)
 
 		},
 		m.output.Init(),
@@ -53,6 +53,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.UpdateContent{})
 		cmds = append(cmds, cmd)
 
+		m.sidebar.callstack, cmd = m.sidebar.callstack.Update(messages.UpdateContent{})
+		cmds = append(cmds, cmd)
+
 		m.sourceCode, cmd = m.sourceCode.Update(messages.UpdateContent{})
 		cmds = append(cmds, cmd)
 
@@ -76,6 +79,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
+		cmds = append(cmds, cmd)
+
+		m.sidebar.callstack, cmd = m.sidebar.callstack.Update(msg)
 		cmds = append(cmds, cmd)
 
 		m.sourceCode, cmd = m.sourceCode.Update(msg)
@@ -117,6 +123,9 @@ func (m *model) updateFocus(focusedWindow int) tea.Cmd {
 	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.IsFocused(m.focusedWindow == m.sidebar.breakpoints.ID))
 	cmds = append(cmds, cmd)
 
+	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(messages.IsFocused(m.focusedWindow == m.sidebar.callstack.ID))
+	cmds = append(cmds, cmd)
+
 	m.sourceCode, cmd = m.sourceCode.Update(messages.IsFocused(m.focusedWindow == m.sourceCode.ID))
 	cmds = append(cmds, cmd)
 
@@ -135,6 +144,7 @@ func (m model) View() string {
 				lipgloss.Top,
 				m.sidebar.localVariables.View(),
 				m.sidebar.breakpoints.View(),
+				m.sidebar.callstack.View(),
 				m.sidebar.errorMessage.View(),
 			),
 			lipgloss.JoinVertical(
@@ -158,10 +168,13 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
 	cmds = append(cmds, cmd)
 
+	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	cmds = append(cmds, cmd)
+
 	m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
 	cmds = append(cmds, cmd)
 
-	sourceCodeHeight := max((msg.Height)-10, 5)
+	sourceCodeHeight := max((msg.Height)-10, 2)
 	sourceCodeWidth := (msg.Width - sidebarWidth) - 4
 
 	m.sourceCode, cmd = m.sourceCode.Update(tea.WindowSizeMsg{Width: sourceCodeWidth, Height: sourceCodeHeight})
