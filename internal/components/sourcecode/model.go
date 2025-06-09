@@ -80,27 +80,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		switch msg.String() {
-
-		case "n":
-			err := m.debugger.Next()
-			if err != nil {
+		if msg.String() == "n" {
+			if err := m.next(); err != nil {
 				return m, func() tea.Msg {
-					return messages.Error(fmt.Errorf("error stepping over: %w", err))
+					return messages.Error(err)
 				}
 			}
-
-			line, err := m.debugger.CurrentLine()
-			if err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(fmt.Errorf("error stepping over: %w", err))
-				}
-			}
-
-			m.viewport.jumpToLine(line)
 			return m, func() tea.Msg { return messages.UpdateContent{} }
+		}
 
-		case "c":
+		if msg.String() == "c" {
 			m.debugger.Continue()
 			line, err := m.debugger.CurrentLine()
 			if err != nil {
@@ -112,8 +101,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.viewport.jumpToLine(line)
 
 			return m, func() tea.Msg { return messages.UpdateContent{} }
+		}
 
-		case "r":
+		if msg.String() == "r" {
 			if err := m.debugger.Restart(); err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(fmt.Errorf("error restarting: %w", err))
@@ -123,45 +113,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, func() tea.Msg { return messages.Error(err) }
 			}
 			return m, func() tea.Msg { return messages.Restart{} }
+		}
 
-		case "b":
-			currentLine := m.viewport.CurrentLineNumber()
-			if _, err := m.debugger.CreateBreakpoint(m.currentFilename, currentLine); err != nil {
-
-				if strings.Contains(err.Error(), "Breakpoint exists") {
-					filename, err := m.debugger.CurrentFilename()
-					if err != nil {
-						return m, func() tea.Msg {
-							return messages.Error(fmt.Errorf("error creating breakpoint: getCurrentFilename %w", err))
-						}
-					}
-					bps, err := m.debugger.FileBreakpoints(filename)
-					if err != nil {
-						return m, func() tea.Msg {
-							return messages.Error(fmt.Errorf("error creating breakpoint: getFileBreakpoints %w", err))
-						}
-					}
-
-					m.debugger.ClearBreakpoint(bps[currentLine].ID)
-
-					return m, func() tea.Msg {
-						return messages.UpdateContent{}
-					}
-				}
-
+		if msg.String() == "b" {
+			if err := m.createBreakpoint(); err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
 				}
 			}
+
 			return m, func() tea.Msg {
 				return messages.UpdateContent{}
 			}
-
-		default:
-			var cmd tea.Cmd
-			m.viewport, cmd = m.viewport.Update(msg)
-			return m, cmd
 		}
+
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+
+		return m, cmd
 	}
 
 	return m, nil
@@ -194,6 +163,46 @@ func (m *Model) updateContent() error {
 	m.currentFilename, err = m.debugger.CurrentFilename()
 	if err != nil {
 		return fmt.Errorf("error getting current file: %w", err)
+	}
+
+	return nil
+}
+
+func (m *Model) next() error {
+	err := m.debugger.Next()
+	if err != nil {
+		return messages.Error(fmt.Errorf("error stepping over: %w", err))
+	}
+
+	line, err := m.debugger.CurrentLine()
+	if err != nil {
+		return messages.Error(fmt.Errorf("error stepping over: %w", err))
+	}
+
+	m.viewport.jumpToLine(line)
+	return nil
+}
+
+func (m Model) createBreakpoint() error {
+	currentLine := m.viewport.CurrentLineNumber()
+	if _, err := m.debugger.CreateBreakpoint(m.currentFilename, currentLine); err != nil {
+
+		if strings.Contains(err.Error(), "Breakpoint exists") {
+			filename, err := m.debugger.CurrentFilename()
+			if err != nil {
+				return messages.Error(fmt.Errorf("error creating breakpoint: getCurrentFilename %w", err))
+			}
+			bps, err := m.debugger.FileBreakpoints(filename)
+			if err != nil {
+				return messages.Error(fmt.Errorf("error creating breakpoint: getFileBreakpoints %w", err))
+			}
+
+			m.debugger.ClearBreakpoint(bps[currentLine].ID)
+
+			return nil
+		}
+
+		return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
 	}
 
 	return nil
