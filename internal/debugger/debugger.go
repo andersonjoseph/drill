@@ -178,10 +178,6 @@ func (d *Debugger) GetCurrentFileContent() (string, error) {
 	output := strings.Builder{}
 	for scanner.Scan() {
 		line++
-
-		lineNumber := lineNumberStyle.Render(fmt.Sprintf("%d ", line))
-		output.WriteString(lineNumber)
-
 		bp, isBpInLine := bps[line]
 
 		if line == currentLine {

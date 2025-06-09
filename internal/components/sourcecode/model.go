@@ -7,21 +7,20 @@ import (
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 var (
-	windowFocusedStyle lipgloss.Style = lipgloss.NewStyle().
+	windowFocusedStyle = lipgloss.NewStyle().
 				Foreground(components.ColorGreen).
 				Border(lipgloss.NormalBorder()).
 				BorderTop(false).
 				BorderForeground(components.ColorGreen)
 
-	windowDefaultStyle lipgloss.Style = lipgloss.NewStyle().
+	windowDefaultStyle = lipgloss.NewStyle().
 				Foreground(components.ColorWhite).
-				Border(lipgloss.NormalBorder()).BorderTop(false).
+				Border(lipgloss.NormalBorder()).
 				BorderTop(false).
 				BorderForeground(components.ColorWhite)
 )
@@ -31,131 +30,116 @@ type Model struct {
 	title           string
 	currentFilename string
 	IsFocused       bool
-	content         string
+	cursor          int
 	Width           int
 	Height          int
-	viewport        viewport.Model
+	viewport        viewportWithCursorModel
 	debugger        *debugger.Debugger
 }
 
 func New(id int, title string, d *debugger.Debugger) Model {
-	vp := viewport.New(0,0)
 	return Model{
 		ID:       id,
 		title:    title,
 		debugger: d,
-		viewport: vp,
+		viewport: newViewportWithCursor(),
 	}
 }
 
 func (m Model) Init() tea.Cmd { return nil }
+
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.IsFocused:
+		var cmd tea.Cmd
+
 		m.IsFocused = bool(msg)
-		return m, nil
+		m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 
 	case messages.UpdateContent, tea.WindowSizeMsg:
 		if err := m.updateContent(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
+			return m, func() tea.Msg { return messages.Error(err) }
 		}
-		return m, nil
 
 	case tea.KeyMsg:
 		if !m.IsFocused {
 			return m, nil
 		}
 
-		if msg.String() == "n" {
-			_, err := m.debugger.Client.Next()
+		switch msg.String() {
 
+		case "n":
+			debuggerState, err := m.debugger.Client.Next()
 			if err != nil {
-				err = fmt.Errorf("error stepping over to the next line: %w", err)
 				return m, func() tea.Msg {
-					return messages.Error(err)
+					return messages.Error(fmt.Errorf("error stepping over: %w", err))
 				}
 			}
 
-			return m, func() tea.Msg {
-				return messages.UpdateContent{}
-			}
-		}
 
-		if msg.String() == "c" {
-			<-m.debugger.Client.Continue()
-			return m, func() tea.Msg {
-				return messages.UpdateContent{}
-			}
-		}
+			m.viewport.jumpToLine(debuggerState.CurrentThread.Line)
+			return m, func() tea.Msg { return messages.UpdateContent{} }
 
-		if msg.String() == "r" {
-			_, err := m.debugger.Client.Restart(false)
-			if err != nil {
-				err = fmt.Errorf("error restarting debugger: %w", err)
+		case "c":
+			debuggerState := <-m.debugger.Client.Continue()
+			m.viewport.jumpToLine(debuggerState.CurrentThread.Line)
+
+			return m, func() tea.Msg { return messages.UpdateContent{} }
+
+		case "r":
+			if _, err := m.debugger.Client.Restart(false); err != nil {
 				return m, func() tea.Msg {
-					return messages.Error(err)
+					return messages.Error(fmt.Errorf("error restarting: %w", err))
 				}
 			}
-
 			if err := m.updateContent(); err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(err)
-				}
+				return m, func() tea.Msg { return messages.Error(err) }
 			}
+			return m, func() tea.Msg { return messages.Restart{} }
 
-			return m, func() tea.Msg {
-				return messages.Restart{}
-			}
+		default:
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
 		}
-
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(msg)
-
-		return m, cmd
 	}
 
 	return m, nil
 }
 
 func (m Model) View() string {
-	var style lipgloss.Style
+	style := windowDefaultStyle
 	if m.IsFocused {
 		style = windowFocusedStyle
-	} else {
-		style = windowDefaultStyle
 	}
 
 	title := fmt.Sprintf("[%d] %s [%s]", m.ID, m.title, m.currentFilename)
-
 	topBorder := "┌" + title + strings.Repeat("─", max(m.Width-len(title), 1)) + "┐"
 
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
 		style.Border(lipgloss.Border{}).Render(topBorder),
-		style.
-			Height(m.Height).
-			Width(m.Width).
-			Render(m.viewport.View()),
+		style.Height(m.Height).Width(m.Width).Render(m.viewport.View()),
 	)
 }
 
 func (m *Model) updateContent() error {
-	var err error
 	content, err := m.debugger.GetCurrentFileContent()
 	if err != nil {
 		return fmt.Errorf("error updating content: %w", err)
 	}
-	m.content = content
 
-	m.viewport.Height = m.Height
-	m.viewport.Width = m.Width
-	m.viewport.SetContent(m.content)
+	m.viewport.setContent(strings.Split(content, "\n"))
+
+	m.viewport.height = m.Height
+	m.viewport.width = m.Width
+
+	m.viewport.updateContent()
 
 	m.currentFilename, err = m.debugger.GetCurrentFilename()
 	if err != nil {
-		return fmt.Errorf("error getting the current file: %w", err)
+		return fmt.Errorf("error getting current file: %w", err)
 	}
 
 	return nil
