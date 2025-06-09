@@ -70,8 +70,15 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, func() tea.Msg { return messages.Error(err) }
 		}
 
+		line, err := m.debugger.CurrentLine()
+		if err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(fmt.Errorf("error updating content: %w", err))
+			}
+		}
+
 		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(msg)
+		m.viewport, cmd = m.viewport.Update(messageUpdateViewport(line))
 
 		return m, cmd
 
@@ -110,7 +117,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 			if err := m.updateContent(); err != nil {
-				return m, func() tea.Msg { return messages.Error(err) }
+				return m, func() tea.Msg {
+					return messages.Error(fmt.Errorf("error restarting: %w", err))
+				}
 			}
 			return m, func() tea.Msg { return messages.Restart{} }
 		}
@@ -118,7 +127,31 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if msg.String() == "b" {
 			if err := m.createBreakpoint(); err != nil {
 				return m, func() tea.Msg {
-					return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
+					return messages.Error(err)
+				}
+			}
+
+			return m, func() tea.Msg {
+				return messages.UpdateContent{}
+			}
+		}
+
+		if msg.String() == "s" {
+			if err := m.debugger.StepIn(); err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
+			}
+
+			return m, func() tea.Msg {
+				return messages.UpdateContent{}
+			}
+		}
+
+		if msg.String() == "S" {
+			if err := m.debugger.StepOut(); err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(err)
 				}
 			}
 

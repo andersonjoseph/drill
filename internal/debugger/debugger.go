@@ -367,6 +367,20 @@ func (d Debugger) CurrentLine() (int, error) {
 	return state.CurrentThread.Line, nil
 }
 
+func (d Debugger) StepIn() error {
+	if _, err := d.client.Step(); err != nil {
+		return fmt.Errorf("error stepping in: %w", err)
+	}
+	return nil
+}
+
+func (d Debugger) StepOut() error {
+	if _, err := d.client.StepOut(); err != nil {
+		return fmt.Errorf("error stepping out: %w", err)
+	}
+	return nil
+}
+
 func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
 	return Breakpoint{
 		ID:        bp.ID,
