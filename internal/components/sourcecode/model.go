@@ -90,7 +90,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 
-			line, err := m.debugger.GetCurrentLine()
+			line, err := m.debugger.CurrentLine()
 			if err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(fmt.Errorf("error stepping over: %w", err))
@@ -102,7 +102,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		case "c":
 			m.debugger.Continue()
-			line, err := m.debugger.GetCurrentLine()
+			line, err := m.debugger.CurrentLine()
 			if err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(fmt.Errorf("error continuing execution: %w", err))
@@ -125,17 +125,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, func() tea.Msg { return messages.Restart{} }
 
 		case "b":
-			currentLine := m.viewport.GetCurrentLineNumber()
+			currentLine := m.viewport.CurrentLineNumber()
 			if _, err := m.debugger.CreateBreakpoint(m.currentFilename, currentLine); err != nil {
 
 				if strings.Contains(err.Error(), "Breakpoint exists") {
-					filename, err := m.debugger.GetCurrentFilename()
+					filename, err := m.debugger.CurrentFilename()
 					if err != nil {
 						return m, func() tea.Msg {
 							return messages.Error(fmt.Errorf("error creating breakpoint: getCurrentFilename %w", err))
 						}
 					}
-					bps, err := m.debugger.GetFileBreakpoints(filename)
+					bps, err := m.debugger.FileBreakpoints(filename)
 					if err != nil {
 						return m, func() tea.Msg {
 							return messages.Error(fmt.Errorf("error creating breakpoint: getFileBreakpoints %w", err))
@@ -184,14 +184,14 @@ func (m Model) View() string {
 }
 
 func (m *Model) updateContent() error {
-	content, err := m.debugger.GetCurrentFileContent()
+	content, err := m.debugger.CurrentFileContent()
 	if err != nil {
 		return fmt.Errorf("error updating content: %w", err)
 	}
 
 	m.viewport.setContent(content)
 
-	m.currentFilename, err = m.debugger.GetCurrentFilename()
+	m.currentFilename, err = m.debugger.CurrentFilename()
 	if err != nil {
 		return fmt.Errorf("error getting current file: %w", err)
 	}

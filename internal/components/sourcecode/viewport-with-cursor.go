@@ -84,15 +84,11 @@ func (m viewportWithCursorModel) View() string {
 	return m.viewport.View()
 }
 
-func (m viewportWithCursorModel) GetCurrentLine() string {
-	return m.getLine(m.cursor)
+func (m viewportWithCursorModel) CurrentLine() string {
+	return m.Line(m.cursor)
 }
 
-func (m viewportWithCursorModel) GetLine(lineNumber int) string {
-	return m.getLine(lineNumber - 1)
-}
-
-func (m viewportWithCursorModel) GetCurrentLineNumber() int {
+func (m viewportWithCursorModel) CurrentLineNumber() int {
 	return m.cursor + 1
 }
 
@@ -163,7 +159,7 @@ func (m *viewportWithCursorModel) ensureCursorVisible() {
 	}
 }
 
-func (m viewportWithCursorModel) getLine(index int) string {
+func (m viewportWithCursorModel) Line(index int) string {
 	if index >= 0 && index < len(m.content) {
 		return m.content[index]
 	}

@@ -209,7 +209,7 @@ func (m Model) View() string {
 }
 
 func (m *Model) updateContent() error {
-	bps, err := m.debugger.GetBreakpoints()
+	bps, err := m.debugger.Breakpoints()
 	if err != nil {
 		return fmt.Errorf("erorr updating content: %w", err)
 	}

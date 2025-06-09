@@ -128,7 +128,7 @@ func (d *Debugger) startProcess(filename string) error {
 	return nil
 }
 
-func (d *Debugger) GetCurrentFile() (*os.File, error) {
+func (d *Debugger) CurrentFile() (*os.File, error) {
 	state, err := d.client.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current file: debugger state: %w", err)
@@ -152,18 +152,18 @@ func (d *Debugger) GetCurrentFile() (*os.File, error) {
 	return d.currentFile, nil
 }
 
-func (d *Debugger) GetCurrentFileContent() ([]string, error) {
+func (d *Debugger) CurrentFileContent() ([]string, error) {
 	state, err := d.client.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
-	file, err := d.GetCurrentFile()
+	file, err := d.CurrentFile()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current file content: get current file: %w", err)
 	}
 
-	bps, err := d.GetFileBreakpoints(file.Name())
+	bps, err := d.FileBreakpoints(file.Name())
 	if err != nil {
 		return nil, fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
 	}
@@ -209,9 +209,9 @@ func (d *Debugger) GetCurrentFileContent() ([]string, error) {
 	return lines, nil
 }
 
-func (d Debugger) GetFileBreakpoints(filename string) (map[int]Breakpoint, error) {
+func (d Debugger) FileBreakpoints(filename string) (map[int]Breakpoint, error) {
 	bpsInThisFile := make(map[int]Breakpoint, 0)
-	bps, err := d.GetBreakpoints()
+	bps, err := d.Breakpoints()
 	if err != nil {
 		return bpsInThisFile, fmt.Errorf("error getting current file content: error getting breakpoints: %s: %v", filename, err)
 	}
@@ -226,8 +226,8 @@ func (d Debugger) GetFileBreakpoints(filename string) (map[int]Breakpoint, error
 	return bpsInThisFile, nil
 }
 
-func (d *Debugger) GetCurrentFilename() (string, error) {
-	f, err := d.GetCurrentFile()
+func (d *Debugger) CurrentFilename() (string, error) {
+	f, err := d.CurrentFile()
 	if err != nil {
 		return "", fmt.Errorf("error getting the current filename: %w", err)
 	}
@@ -235,7 +235,7 @@ func (d *Debugger) GetCurrentFilename() (string, error) {
 	return f.Name(), nil
 }
 
-func (d Debugger) GetLocalVariables() ([]Variable, error) {
+func (d Debugger) LocalVariables() ([]Variable, error) {
 	state, err := d.client.GetState()
 	if err != nil {
 		return []Variable{}, fmt.Errorf("eerror getting local variables: debugger state: %w", err)
@@ -260,7 +260,7 @@ func (d Debugger) GetLocalVariables() ([]Variable, error) {
 	return localVariables, nil
 }
 
-func (d Debugger) GetBreakpoints() ([]Breakpoint, error) {
+func (d Debugger) Breakpoints() ([]Breakpoint, error) {
 	bps, err := d.client.ListBreakpoints(false)
 	if err != nil {
 		return []Breakpoint{}, fmt.Errorf("error getting breakpoints: %w", err)
@@ -358,7 +358,7 @@ func (d Debugger) Close() error {
 	return fmt.Errorf("error closing debugger: %w", d.client.Disconnect(false))
 }
 
-func (d Debugger) GetCurrentLine() (int, error) {
+func (d Debugger) CurrentLine() (int, error) {
 	state, err := d.client.GetState()
 	if err != nil {
 		return 0, fmt.Errorf("error getting current state: %w", err)

@@ -146,7 +146,7 @@ func (m Model) View() string {
 }
 
 func (m *Model) updateContent() error {
-	vars, err := m.debugger.GetLocalVariables()
+	vars, err := m.debugger.LocalVariables()
 	if err != nil {
 		return fmt.Errorf("erorr updating content: %w", err)
 	}
