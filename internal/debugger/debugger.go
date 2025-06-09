@@ -152,7 +152,7 @@ func (d *Debugger) GetCurrentFile() (*os.File, error) {
 	return d.currentFile, nil
 }
 
-func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
+func (d *Debugger) GetCurrentFileContent() (string, error) {
 	state, err := d.Client.GetState()
 	if err != nil {
 		return "", fmt.Errorf("error getting current file content: debugger state: %w", err)
@@ -174,15 +174,10 @@ func (d *Debugger) GetCurrentFileContent(offset int) (string, error) {
 	line := 0
 
 	currentLine := state.CurrentThread.Line
-	startLine := max(0, currentLine-offset)
-	endLine := currentLine + offset
 
 	output := strings.Builder{}
-	for scanner.Scan() && line < endLine {
+	for scanner.Scan() {
 		line++
-		if line < startLine {
-			continue
-		}
 
 		lineNumber := lineNumberStyle.Render(fmt.Sprintf("%d ", line))
 		output.WriteString(lineNumber)

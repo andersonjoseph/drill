@@ -7,6 +7,7 @@ import (
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -33,14 +34,17 @@ type Model struct {
 	content         string
 	Width           int
 	Height          int
+	viewport        viewport.Model
 	debugger        *debugger.Debugger
 }
 
 func New(id int, title string, d *debugger.Debugger) Model {
+	vp := viewport.New(0,0)
 	return Model{
 		ID:       id,
 		title:    title,
 		debugger: d,
+		viewport: vp,
 	}
 }
 
@@ -105,6 +109,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return messages.Restart{}
 			}
 		}
+
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+
+		return m, cmd
 	}
 
 	return m, nil
@@ -128,17 +137,21 @@ func (m Model) View() string {
 		style.
 			Height(m.Height).
 			Width(m.Width).
-			Render(m.content),
+			Render(m.viewport.View()),
 	)
 }
 
 func (m *Model) updateContent() error {
 	var err error
-	content, err := m.debugger.GetCurrentFileContent((m.Height / 2) - 2)
+	content, err := m.debugger.GetCurrentFileContent()
 	if err != nil {
 		return fmt.Errorf("error updating content: %w", err)
 	}
 	m.content = content
+
+	m.viewport.Height = m.Height
+	m.viewport.Width = m.Width
+	m.viewport.SetContent(m.content)
 
 	m.currentFilename, err = m.debugger.GetCurrentFilename()
 	if err != nil {
