@@ -116,7 +116,7 @@ func (m *viewportWithCursorModel) jumpToLine(index int) {
 		index = len(m.content) - 1
 	}
 
-	m.cursor = index + 1
+	m.cursor = index - 1
 	m.ensureCursorVisible()
 	m.updateContent()
 }
