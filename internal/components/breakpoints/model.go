@@ -38,7 +38,6 @@ type Model struct {
 	Width          int
 	Height         int
 	list           list.Model
-	Error          error
 	debugger       *debugger.Debugger
 	conditionInput conditionInputModel
 }
@@ -97,7 +96,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case messages.UpdateContent, messages.Restart:
-		m.updateContent()
+		if err := m.updateContent(); err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(err)
+			}
+		}
+
 		return m, nil
 
 	case messageNewCondition:
@@ -106,11 +110,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		_, err := m.debugger.AddConditionToBreakpoint(bp.breakpoint.ID, string(msg))
 
 		if err != nil {
-			m.Error = err
-			return m, nil
+			return m, func() tea.Msg {
+				return messages.Error(err)
+			}
 		}
 
-		m.updateContent()
+		if err := m.updateContent(); err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(err)
+			}
+		}
+
 		return m, cmd
 
 	case tea.KeyMsg:
@@ -125,7 +135,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		if msg.String() == "a" {
-			m.createBreakpoint()
+			if err := m.createBreakpoint(); err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
+			}
 			return m, nil
 		}
 
@@ -137,7 +151,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		if msg.String() == "d" {
-			m.clearBreakpoint()
+			if err := m.clearBreakpoint(); err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
+			}
 			return m, nil
 		}
 
@@ -188,19 +206,20 @@ func (m Model) View() string {
 	)
 }
 
-func (m *Model) updateContent() {
+func (m *Model) updateContent() error {
 	bps, err := m.debugger.GetBreakpoints()
 	if err != nil {
-		m.Error = fmt.Errorf("erorr updating content: %w", err)
-		return
+		return fmt.Errorf("erorr updating content: %w", err)
 	}
 
 	m.list.SetItems(breakpointsToListItems(bps))
+	return nil
 }
 
-func (m *Model) createBreakpoint() {
+func (m *Model) createBreakpoint() error {
 	m.debugger.CreateBreakpointNow()
-	m.updateContent()
+
+	return m.updateContent()
 }
 
 func (m *Model) toggleBreakpoint() {
@@ -212,15 +231,20 @@ func (m *Model) toggleBreakpoint() {
 	m.debugger.ToggleBreakpoint(id)
 }
 
-func (m *Model) clearBreakpoint() {
+func (m *Model) clearBreakpoint() error {
 	i := m.list.SelectedItem()
 	if i == nil {
-		return
+		return nil
 	}
 	id := i.(listItem).breakpoint.ID
 	m.debugger.ClearBreakpoint(id)
-	m.updateContent()
+	if err := m.updateContent(); err != nil {
+		return err
+	}
+
 	m.list.CursorUp()
+
+	return nil
 }
 
 func truncPath(path string, maxWidth int) string {

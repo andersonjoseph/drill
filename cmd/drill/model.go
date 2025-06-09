@@ -40,6 +40,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case messages.Error:
+		m.error = msg
+		return m, nil
 
 	case messages.FocusedWindow:
 		cmd = m.updateFocus(int(msg))
@@ -77,7 +80,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 		m.error = nil
-		m.bubbleUpComponentErrors()
 		return m, tea.Batch(cmds...)
 
 	default:
@@ -93,7 +95,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.output, cmd = m.output.Update(msg)
 		cmds = append(cmds, cmd)
 
-		m.bubbleUpComponentErrors()
 		return m, tea.Batch(cmds...)
 	}
 }
@@ -116,26 +117,7 @@ func (m *model) updateFocus(focusedWindow int) tea.Cmd {
 	m.output, cmd = m.output.Update(messages.IsFocused(m.focusedWindow == m.output.ID))
 	cmds = append(cmds, cmd)
 
-	m.bubbleUpComponentErrors()
 	return tea.Batch(cmds...)
-}
-
-func (m *model) bubbleUpComponentErrors() {
-	if err := m.sidebar.localVariables.Error; err != nil {
-		m.error = err
-		m.sidebar.localVariables.Error = nil
-		return
-	}
-	if err := m.sidebar.breakpoints.Error; err != nil {
-		m.error = err
-		m.sidebar.breakpoints.Error = nil
-		return
-	}
-	if err := m.sourceCode.Error; err != nil {
-		m.error = err
-		m.sourceCode.Error = nil
-		return
-	}
 }
 
 func (m model) viewErrMessage() string {
@@ -194,7 +176,6 @@ func (m *model) updateContent() {
 	m.sidebar.breakpoints, _ = m.sidebar.breakpoints.Update(messages.UpdateContent{})
 	m.sourceCode, _ = m.sourceCode.Update(messages.UpdateContent{})
 
-	m.bubbleUpComponentErrors()
 }
 
 func (m *model) handleResize(msg tea.WindowSizeMsg) {

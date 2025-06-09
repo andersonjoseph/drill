@@ -24,7 +24,6 @@ type Model struct {
 	content   string
 	Width     int
 	Height    int
-	Error     error
 	viewport  viewport.Model
 	debugger  *debugger.Debugger
 }

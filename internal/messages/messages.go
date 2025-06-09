@@ -7,3 +7,4 @@ type Restart struct{}
 
 type FocusedWindow int
 type IsFocused bool
+type Error error

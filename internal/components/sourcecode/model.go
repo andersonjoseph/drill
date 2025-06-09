@@ -33,7 +33,6 @@ type Model struct {
 	content         string
 	Width           int
 	Height          int
-	Error           error
 	debugger        *debugger.Debugger
 }
 
@@ -53,7 +52,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case messages.UpdateContent, tea.WindowSizeMsg:
-		m.updateContent()
+		if err := m.updateContent(); err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(err)
+			}
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -63,10 +66,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		if msg.String() == "n" {
 			_, err := m.debugger.Client.Next()
+
 			if err != nil {
-				m.Error = fmt.Errorf("error stepping over to the next line: %w", err)
-				return m, nil
+				err = fmt.Errorf("error stepping over to the next line: %w", err)
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
 			}
+
 			return m, func() tea.Msg {
 				return messages.UpdateContent{}
 			}
@@ -82,10 +89,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if msg.String() == "r" {
 			_, err := m.debugger.Client.Restart(false)
 			if err != nil {
-				m.Error = fmt.Errorf("error restarting debugger: %w", err)
-				return m, nil
+				err = fmt.Errorf("error restarting debugger: %w", err)
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
 			}
-			m.updateContent()
+
+			if err := m.updateContent(); err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
+			}
+
 			return m, func() tea.Msg {
 				return messages.Restart{}
 			}
@@ -117,21 +132,18 @@ func (m Model) View() string {
 	)
 }
 
-func (m *Model) updateContent() {
+func (m *Model) updateContent() error {
 	var err error
 	content, err := m.debugger.GetCurrentFileContent((m.Height / 2) - 2)
 	if err != nil {
-		m.Error = fmt.Errorf("error updating content: %w", err)
+		return fmt.Errorf("error updating content: %w", err)
 	}
-
 	m.content = content
-
-	if err != nil {
-		m.Error = fmt.Errorf("error colorizing content: %w", err)
-	}
 
 	m.currentFilename, err = m.debugger.GetCurrentFilename()
 	if err != nil {
-		m.Error = fmt.Errorf("error getting the current file: %w", err)
+		return fmt.Errorf("error getting the current file: %w", err)
 	}
+
+	return nil
 }

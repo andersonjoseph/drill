@@ -45,7 +45,6 @@ type Model struct {
 	Width     int
 	Height    int
 	list      list.Model
-	Error     error
 	debugger  *debugger.Debugger
 }
 
@@ -100,7 +99,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case messages.UpdateContent, messages.Restart:
-		m.updateContent()
+		if err := m.updateContent(); err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(err)
+			}
+		}
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -138,14 +142,15 @@ func (m Model) View() string {
 	)
 }
 
-func (m *Model) updateContent() {
+func (m *Model) updateContent() error {
 	vars, err := m.debugger.GetLocalVariables()
 	if err != nil {
-		m.Error = fmt.Errorf("erorr updating content: %w", err)
-		return
+		return fmt.Errorf("erorr updating content: %w", err)
 	}
 
 	m.list.SetItems(variablesToListItems(vars))
+
+	return nil
 }
 
 type listDelegate struct {
