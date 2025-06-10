@@ -14,5 +14,7 @@ type DebuggerBreakpointCreated struct{}
 type DebuggerBreakpointToggled struct{}
 type DebuggerBreakpointCleared struct{}
 
+type BreakpointSelected int
+
 type DebuggerStdoutReceived string
 type DebuggerStderrReceived string

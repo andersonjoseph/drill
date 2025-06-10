@@ -125,6 +125,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, cmd
 
+	case messages.BreakpointSelected:
+		for i, item := range m.list.Items() {
+			item := item.(listItem)
+			if item.breakpoint.ID == int(msg) {
+				m.list.Select(i)
+				return m, func() tea.Msg {
+					return messages.WindowFocused(m.ID)
+				}
+			}
+		}
+
+		return m, nil
+
 	case tea.KeyMsg:
 		var cmd tea.Cmd
 		if m.conditionInput.isFocused {
