@@ -219,7 +219,7 @@ func (i listItem) Render(width int) string {
 	var style lipgloss.Style
 	var indicator string
 
-	truncatedFilename := truncPath(i.frame.Filename, width)
+	truncatedFilename := truncPath(i.frame.Filename, width-2)
 
 	item := fmt.Sprintf("%s()\n %s:%d", i.frame.FunctionName, truncatedFilename, i.frame.Line)
 

@@ -157,32 +157,56 @@ func (m model) View() string {
 }
 
 func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
-	var cmd tea.Cmd
+	const (
+		sidebarRatio      = 0.3
+		minSidebarWidth   = 20
+		maxSidebarWidth   = 50
+		mainPanelVPadding = 4
+		mainPanelHPadding = 4
+	)
+
+	// --- Sidebar Calculations ---
+	sidebarWidth := int(float64(msg.Width) * sidebarRatio)
+	if sidebarWidth < minSidebarWidth {
+		sidebarWidth = minSidebarWidth
+	}
+	if sidebarWidth > maxSidebarWidth {
+		sidebarWidth = maxSidebarWidth
+	}
+
+	sidebarAvailableHeight := msg.Height - 4 // e.g., 1px border per component
+	sidebarComponentHeight := sidebarAvailableHeight / 4
+
+	// --- Main Panel Calculations (Source Code + Output) ---
+	mainPanelWidth := msg.Width - sidebarWidth - mainPanelHPadding
+	mainPanelAvailableHeight := msg.Height - mainPanelVPadding
+
+	// Let's give the source code 70% of the available vertical space
+	// and the output the remaining 30%.
+	sourceCodeHeight := int(float64(mainPanelAvailableHeight) * 0.7)
+	outputHeight := mainPanelAvailableHeight - sourceCodeHeight
+
+	// --- Update all components with their new sizes ---
 	var cmds []tea.Cmd
+	var cmd tea.Cmd
 
-	sidebarWidth, sidebarHeight := m.sidebar.calcSize(msg.Width, msg.Height)
-
-	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarComponentHeight})
 	cmds = append(cmds, cmd)
 
-	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarComponentHeight})
 	cmds = append(cmds, cmd)
 
-	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarComponentHeight})
 	cmds = append(cmds, cmd)
 
-	m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarHeight})
+	lastComponentHeight := msg.Height - (sidebarComponentHeight * 3)
+	m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: lastComponentHeight})
 	cmds = append(cmds, cmd)
 
-	sourceCodeHeight := max((msg.Height)-10, 2)
-	sourceCodeWidth := (msg.Width - sidebarWidth) - 4
-
-	m.sourceCode, cmd = m.sourceCode.Update(tea.WindowSizeMsg{Width: sourceCodeWidth, Height: sourceCodeHeight})
+	m.sourceCode, cmd = m.sourceCode.Update(tea.WindowSizeMsg{Width: mainPanelWidth, Height: sourceCodeHeight})
 	cmds = append(cmds, cmd)
 
-	outputHeight := max((msg.Height-sourceCodeHeight)-5, 2)
-	outputWidth := (msg.Width - sidebarWidth) - 4
-	m.output, cmd = m.output.Update(tea.WindowSizeMsg{Width: outputWidth, Height: outputHeight})
+	m.output, cmd = m.output.Update(tea.WindowSizeMsg{Width: mainPanelWidth, Height: outputHeight})
 	cmds = append(cmds, cmd)
 
 	return tea.Batch(cmds...)
