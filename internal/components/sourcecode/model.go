@@ -161,6 +161,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		}
 
+		if msg.String() == "z" {
+			m.viewport.centerCursorView()
+
+			return m, nil
+		}
+
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 

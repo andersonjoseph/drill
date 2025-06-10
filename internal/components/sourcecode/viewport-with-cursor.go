@@ -118,7 +118,26 @@ func (m *viewportWithCursorModel) jumpToLine(index int) {
 
 	m.cursor = index - 1
 	m.ensureCursorVisible()
+	m.centerCursorView()
 	m.updateContent()
+}
+
+func (m *viewportWithCursorModel) centerCursorView() {
+	newYOffset := m.cursor - (m.viewport.Height / 2)
+
+	if newYOffset < 0 {
+		newYOffset = 0
+	}
+
+	maxOffset := len(m.content) - m.viewport.Height
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if newYOffset > maxOffset {
+		newYOffset = maxOffset
+	}
+
+	m.viewport.SetYOffset(newYOffset)
 }
 
 func (m *viewportWithCursorModel) updateContent() {
