@@ -167,6 +167,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "t" {
+			if err := m.toggleBreakpoint(); err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
+			}
+
+			return m, func() tea.Msg {
+				return messages.DebuggerBreakpointToggled{}
+			}
+		}
+
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 
@@ -243,6 +255,31 @@ func (m Model) createBreakpoint() error {
 		}
 
 		return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
+	}
+
+	return nil
+}
+
+func (m Model) toggleBreakpoint() error {
+	currentLine := m.viewport.CurrentLineNumber()
+
+	currentFilename, err := m.debugger.CurrentFilename()
+	if err != nil {
+		return messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
+	}
+
+	bps, err := m.debugger.FileBreakpoints(currentFilename)
+	if err != nil {
+		return messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
+	}
+
+	bp, ok := bps[currentLine]
+	if !ok {
+		return nil
+	}
+
+	if err := m.debugger.ToggleBreakpoint(bp.ID); err != nil {
+		return messages.Error(fmt.Errorf("error toggling breakpoint %w", err))
 	}
 
 	return nil
