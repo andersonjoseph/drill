@@ -37,20 +37,20 @@ func (m conditionInputModel) Update(msg tea.Msg) (conditionInputModel, tea.Cmd) 
 	case tea.KeyMsg:
 		var cmd tea.Cmd
 		if msg.String() == "esc" {
-			m.isFocused = false
+			m.setFocus(false)
 			m.textInput.SetValue("")
 			return m, func() tea.Msg {
-				return messages.FocusedWindow(m.id)
+				return messages.WindowFocused(m.id)
 			}
 		}
 
 		if msg.String() == "enter" {
-			m.isFocused = false
+			m.setFocus(false)
 			content := m.textInput.Value()
 			m.textInput.SetValue("")
 			return m, tea.Batch(
 				func() tea.Msg {
-					return messages.FocusedWindow(m.id)
+					return messages.WindowFocused(m.id)
 				},
 				func() tea.Msg {
 					return messageNewCondition(content)
@@ -59,12 +59,6 @@ func (m conditionInputModel) Update(msg tea.Msg) (conditionInputModel, tea.Cmd) 
 		}
 		m.textInput, cmd = m.textInput.Update(msg)
 		return m, cmd
-
-	case messages.IsFocused:
-		m.isFocused = bool(msg)
-		m.textInput.Focus()
-
-		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -97,4 +91,9 @@ func (m conditionInputModel) View() string {
 			Foreground(components.ColorWhite).
 			Render(m.textInput.View()),
 	)
+}
+
+func (m *conditionInputModel) setFocus(f bool) {
+	m.isFocused = f
+	m.textInput.Focus()
 }

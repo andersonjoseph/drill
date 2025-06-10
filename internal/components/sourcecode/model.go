@@ -50,12 +50,11 @@ func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case messages.IsFocused:
-		var cmd tea.Cmd
+	case messages.WindowFocused:
+		m.IsFocused = int(msg) == m.ID
 
-		m.IsFocused = bool(msg)
-		m.viewport, cmd = m.viewport.Update(msg)
-		return m, cmd
+		m.viewport.setFocus(m.IsFocused)
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -65,9 +64,20 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.viewport, cmd = m.viewport.Update(msg)
 		return m, cmd
 
-	case messages.UpdateContent:
+	case messages.RefreshContent:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg { return messages.Error(err) }
+		}
+
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(messages.RefreshContent{})
+		return m, cmd
+
+	case messages.DebuggerRestarted, messages.DebuggerStepped:
+		if err := m.updateContent(); err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(fmt.Errorf("error handling debugger step: %w", err))
+			}
 		}
 
 		line, err := m.debugger.CurrentLine()
@@ -76,11 +86,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return messages.Error(fmt.Errorf("error updating content: %w", err))
 			}
 		}
+		m.viewport.jumpToLine(line)
 
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(messageUpdateViewport(line))
+		return m, nil
 
-		return m, cmd
+	case messages.DebuggerBreakpointCreated, messages.DebuggerBreakpointToggled:
+		if err := m.updateContent(); err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(fmt.Errorf("error handling debugger step: %w", err))
+			}
+		}
+
+		return m, nil
 
 	case tea.KeyMsg:
 		if !m.IsFocused {
@@ -89,25 +106,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		if msg.String() == "n" {
 			if err := m.next(); err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(err)
-				}
+				return m, func() tea.Msg { return messages.Error(err) }
 			}
-			return m, func() tea.Msg { return messages.UpdateContent{} }
+			return m, func() tea.Msg { return messages.DebuggerStepped{} }
 		}
 
 		if msg.String() == "c" {
 			m.debugger.Continue()
-			line, err := m.debugger.CurrentLine()
-			if err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(fmt.Errorf("error continuing execution: %w", err))
-				}
-			}
-
-			m.viewport.jumpToLine(line)
-
-			return m, func() tea.Msg { return messages.UpdateContent{} }
+			return m, func() tea.Msg { return messages.DebuggerStepped{} }
 		}
 
 		if msg.String() == "r" {
@@ -116,12 +122,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return messages.Error(fmt.Errorf("error restarting: %w", err))
 				}
 			}
-			if err := m.updateContent(); err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(fmt.Errorf("error restarting: %w", err))
-				}
-			}
-			return m, func() tea.Msg { return messages.Restart{} }
+			return m, func() tea.Msg { return messages.DebuggerRestarted{} }
 		}
 
 		if msg.String() == "b" {
@@ -132,7 +133,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 
 			return m, func() tea.Msg {
-				return messages.UpdateContent{}
+				return messages.DebuggerBreakpointCreated{}
 			}
 		}
 
@@ -144,7 +145,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 
 			return m, func() tea.Msg {
-				return messages.UpdateContent{}
+				return messages.DebuggerStepped{}
 			}
 		}
 
@@ -156,7 +157,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 
 			return m, func() tea.Msg {
-				return messages.UpdateContent{}
+				return messages.DebuggerStepped{}
 			}
 		}
 

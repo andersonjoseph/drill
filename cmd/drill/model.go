@@ -23,11 +23,11 @@ type model struct {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
-			return messages.UpdateContent{}
+			return messages.RefreshContent{}
 
 		},
 		func() tea.Msg {
-			return messages.FocusedWindow(4)
+			return messages.WindowFocused(4)
 
 		},
 		m.output.Init(),
@@ -43,23 +43,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(msg)
 		return m, cmd
 
-	case messages.FocusedWindow:
-		return m, m.updateFocus(int(msg))
-
-	case messages.UpdateContent:
-		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.UpdateContent{})
-		cmds = append(cmds, cmd)
-
-		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.UpdateContent{})
-		cmds = append(cmds, cmd)
-
-		m.sidebar.callstack, cmd = m.sidebar.callstack.Update(messages.UpdateContent{})
-		cmds = append(cmds, cmd)
-
-		m.sourceCode, cmd = m.sourceCode.Update(messages.UpdateContent{})
-		cmds = append(cmds, cmd)
-
-		return m, tea.Batch(cmds...)
+	case messages.WindowFocused:
+		m.focusedWindow = int(msg)
 
 	case tea.WindowSizeMsg:
 		return m, m.handleResize(msg)
@@ -71,68 +56,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.focusedWindow != 0 && msg.String() != "0" {
 			if focusedWindow, err := strconv.Atoi(msg.String()); err == nil {
-				m.updateFocus(focusedWindow)
+				return m, func() tea.Msg {
+					return messages.WindowFocused(focusedWindow)
+				}
 			}
 		}
 
-		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.sidebar.callstack, cmd = m.sidebar.callstack.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.sourceCode, cmd = m.sourceCode.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.output, cmd = m.output.Update(msg)
-		cmds = append(cmds, cmd)
-
 		m.sidebar.errorMessage.error = nil
-
-		return m, tea.Batch(cmds...)
-
-	default:
-		m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.sourceCode, cmd = m.sourceCode.Update(msg)
-		cmds = append(cmds, cmd)
-
-		m.output, cmd = m.output.Update(msg)
-		cmds = append(cmds, cmd)
-
-		return m, tea.Batch(cmds...)
 	}
-}
 
-func (m *model) updateFocus(focusedWindow int) tea.Cmd {
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
-
-	m.focusedWindow = focusedWindow
-
-	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(messages.IsFocused(m.focusedWindow == m.sidebar.localVariables.ID))
+	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
 	cmds = append(cmds, cmd)
 
-	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(messages.IsFocused(m.focusedWindow == m.sidebar.breakpoints.ID))
+	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
 	cmds = append(cmds, cmd)
 
-	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(messages.IsFocused(m.focusedWindow == m.sidebar.callstack.ID))
+	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(msg)
 	cmds = append(cmds, cmd)
 
-	m.sourceCode, cmd = m.sourceCode.Update(messages.IsFocused(m.focusedWindow == m.sourceCode.ID))
+	m.sourceCode, cmd = m.sourceCode.Update(msg)
 	cmds = append(cmds, cmd)
 
-	m.output, cmd = m.output.Update(messages.IsFocused(m.focusedWindow == m.output.ID))
+	m.output, cmd = m.output.Update(msg)
 	cmds = append(cmds, cmd)
 
-	return tea.Batch(cmds...)
+	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {

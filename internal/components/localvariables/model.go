@@ -79,8 +79,9 @@ func New(id int, debugger *debugger.Debugger) Model {
 func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case messages.IsFocused:
-		m.IsFocused = bool(msg)
+	case messages.WindowFocused:
+		m.IsFocused = int(msg) == m.ID
+
 		m.list.SetDelegate(listDelegate{parentFocused: m.IsFocused})
 
 		if !m.IsFocused {
@@ -101,7 +102,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.list.Styles.NoItems = noItemsStyle.Width(msg.Width)
 		return m, nil
 
-	case messages.UpdateContent, messages.Restart:
+	case messages.RefreshContent, messages.DebuggerRestarted, messages.DebuggerStepped:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(err)

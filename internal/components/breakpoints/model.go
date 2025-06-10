@@ -75,8 +75,8 @@ func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
-	case messages.IsFocused:
-		m.IsFocused = bool(msg)
+	case messages.WindowFocused:
+		m.IsFocused = int(msg) == m.ID
 		m.list.SetDelegate(listDelegate{parentFocused: m.IsFocused})
 
 		if !m.IsFocused {
@@ -97,7 +97,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.conditionInput, _ = m.conditionInput.Update(tea.WindowSizeMsg{Width: m.width})
 		return m, nil
 
-	case messages.UpdateContent, messages.Restart:
+	case messages.RefreshContent, messages.DebuggerRestarted, messages.DebuggerBreakpointCreated, messages.DebuggerBreakpointToggled, messages.DebuggerBreakpointCleared:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(err)
@@ -136,19 +136,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		if msg.String() == "a" {
-			if err := m.createBreakpoint(); err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(err)
-				}
-			}
-			return m, nil
-		}
-
 		if msg.String() == "t" {
 			m.toggleBreakpoint()
 			return m, func() tea.Msg {
-				return messages.UpdateContent{}
+				return messages.DebuggerBreakpointToggled{}
 			}
 		}
 
@@ -158,7 +149,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return messages.Error(err)
 				}
 			}
-			return m, nil
+			return m, func() tea.Msg {
+				return messages.DebuggerBreakpointCleared{}
+			}
 		}
 
 		if msg.String() == "c" {
@@ -167,11 +160,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			bp := m.list.SelectedItem().(listItem)
 
-			m.conditionInput, _ = m.conditionInput.Update(messages.IsFocused(true))
+			m.conditionInput.setFocus(true)
 			m.conditionInput, _ = m.conditionInput.Update(messageNewContent(bp.breakpoint.Condition))
 
 			return m, func() tea.Msg {
-				return messages.FocusedWindow(0)
+				return messages.ModalOpened(true)
 			}
 		}
 
@@ -218,12 +211,6 @@ func (m *Model) updateContent() error {
 	return nil
 }
 
-func (m *Model) createBreakpoint() error {
-	m.debugger.CreateBreakpointNow()
-
-	return m.updateContent()
-}
-
 func (m *Model) toggleBreakpoint() {
 	i := m.list.SelectedItem()
 	if i == nil {
@@ -240,11 +227,6 @@ func (m *Model) clearBreakpoint() error {
 	}
 	id := i.(listItem).breakpoint.ID
 	m.debugger.ClearBreakpoint(id)
-	if err := m.updateContent(); err != nil {
-		return err
-	}
-
-	m.list.CursorUp()
 
 	return nil
 }

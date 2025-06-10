@@ -42,13 +42,13 @@ func New(id int, title string, d *debugger.Debugger) Model {
 
 func waitForStdout(c chan string) tea.Cmd {
 	return func() tea.Msg {
-		return messages.DebuggerStdout(<-c)
+		return messages.DebuggerStdoutReceived(<-c)
 	}
 }
 
 func waitForStderr(c chan string) tea.Cmd {
 	return func() tea.Msg {
-		return messages.DebuggerStderr(<-c)
+		return messages.DebuggerStderrReceived(<-c)
 	}
 }
 
@@ -61,23 +61,23 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case messages.IsFocused:
-		m.IsFocused = bool(msg)
+	case messages.WindowFocused:
+		m.IsFocused = int(msg) == m.ID
 		return m, nil
 
-	case messages.Restart:
+	case messages.DebuggerRestarted:
 		m.content = ""
 		m.viewport.SetContent(m.content)
 		return m, nil
 
-	case messages.DebuggerStdout:
+	case messages.DebuggerStdoutReceived:
 		m.content += "\n" + string(msg)
 		m.viewport.SetContent(m.content)
 		m.viewport.ScrollDown(1)
 
 		return m, waitForStdout(m.debugger.Stdout)
 
-	case messages.DebuggerStderr:
+	case messages.DebuggerStderrReceived:
 		m.content += "\n" + string(msg)
 		m.viewport.SetContent(m.content)
 		m.viewport.ScrollDown(1)

@@ -1,10 +1,18 @@
 package messages
 
-type UpdateContent struct{}
-type DebuggerStdout string
-type DebuggerStderr string
-type Restart struct{}
-
-type FocusedWindow int
-type IsFocused bool
 type Error error
+
+type RefreshContent struct{}
+
+type WindowFocused int
+type ModalOpened bool
+
+type DebuggerStepped struct{}
+type DebuggerRestarted struct{}
+
+type DebuggerBreakpointCreated struct{}
+type DebuggerBreakpointToggled struct{}
+type DebuggerBreakpointCleared struct{}
+
+type DebuggerStdoutReceived string
+type DebuggerStderrReceived string

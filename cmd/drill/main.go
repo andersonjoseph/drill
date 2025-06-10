@@ -68,7 +68,7 @@ func main() {
 		}
 		if autoContinue {
 			debugger.Continue()
-			m.Update(messages.UpdateContent{})
+			m.Update(messages.RefreshContent{})
 		}
 	}
 

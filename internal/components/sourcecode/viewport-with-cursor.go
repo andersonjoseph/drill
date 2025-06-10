@@ -18,8 +18,6 @@ var (
 	lineNumberFocusedStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
 )
 
-type messageUpdateViewport int
-
 type viewportWithCursorModel struct {
 	isFocused bool
 	width     int
@@ -41,9 +39,8 @@ func (m viewportWithCursorModel) Init() tea.Cmd {
 
 func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case messageUpdateViewport:
+	case messages.RefreshContent:
 		m.updateContent()
-		m.jumpToLine(int(msg))
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -53,11 +50,6 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 		m.viewport.Height = m.height
 		m.viewport.Width = m.width
 
-		m.updateContent()
-		return m, nil
-
-	case messages.IsFocused:
-		m.isFocused = bool(msg)
 		m.updateContent()
 		return m, nil
 
@@ -89,6 +81,11 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 
 func (m viewportWithCursorModel) View() string {
 	return m.viewport.View()
+}
+
+func (m *viewportWithCursorModel) setFocus(f bool) {
+	m.isFocused = f
+	m.updateContent()
 }
 
 func (m viewportWithCursorModel) CurrentLine() string {
