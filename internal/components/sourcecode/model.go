@@ -90,7 +90,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, nil
 
-	case messages.DebuggerBreakpointCreated, messages.DebuggerBreakpointToggled:
+	case messages.DebuggerBreakpointCreated, messages.DebuggerBreakpointToggled, messages.DebuggerBreakpointCleared:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(fmt.Errorf("error handling debugger step: %w", err))
@@ -126,15 +126,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		if msg.String() == "b" {
-			if err := m.createBreakpoint(); err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(err)
-				}
-			}
+			return m, m.createOrToggleBreakpoint()
+		}
 
-			return m, func() tea.Msg {
-				return messages.DebuggerBreakpointCreated{}
-			}
+		if msg.String() == "d" {
+			return m, m.clearBreakpoint()
 		}
 
 		if msg.String() == "s" {
@@ -165,18 +161,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.viewport.centerCursorView()
 
 			return m, nil
-		}
-
-		if msg.String() == "t" {
-			if err := m.toggleBreakpoint(); err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(err)
-				}
-			}
-
-			return m, func() tea.Msg {
-				return messages.DebuggerBreakpointToggled{}
-			}
 		}
 
 		if msg.String() == "enter" {
@@ -251,73 +235,83 @@ func (m *Model) next() error {
 	return nil
 }
 
-func (m Model) createBreakpoint() error {
-	currentLine := m.viewport.CurrentLineNumber()
-	if _, err := m.debugger.CreateBreakpoint(m.currentFilename, currentLine); err != nil {
+func (m Model) createOrToggleBreakpoint() tea.Cmd {
+	bp, ok, err := m.currentBreakpoint()
+	if err != nil {
+		return func() tea.Msg {
+			return messages.Error(fmt.Errorf("error clearing breakpoint: currentBreakpoint %w", err))
+		}
+	}
 
-		if strings.Contains(err.Error(), "Breakpoint exists") {
-			filename, err := m.debugger.CurrentFilename()
-			if err != nil {
-				return messages.Error(fmt.Errorf("error creating breakpoint: getCurrentFilename %w", err))
+	if !ok {
+		currentLine := m.viewport.CurrentLineNumber()
+		if _, err := m.debugger.CreateBreakpoint(m.currentFilename, currentLine); err != nil {
+			return func() tea.Msg {
+				return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
 			}
-			bps, err := m.debugger.FileBreakpoints(filename)
-			if err != nil {
-				return messages.Error(fmt.Errorf("error creating breakpoint: getFileBreakpoints %w", err))
-			}
-
-			m.debugger.ClearBreakpoint(bps[currentLine].ID)
-
-			return nil
 		}
 
-		return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
+		return func() tea.Msg {
+			return messages.DebuggerBreakpointCreated{}
+		}
 	}
 
-	return nil
+	m.debugger.ToggleBreakpoint(bp.ID)
+	return func() tea.Msg {
+		return messages.DebuggerBreakpointToggled{}
+	}
 }
 
-func (m Model) toggleBreakpoint() error {
-	currentLine := m.viewport.CurrentLineNumber()
-
-	currentFilename, err := m.debugger.CurrentFilename()
+func (m Model) clearBreakpoint() tea.Cmd {
+	bp, ok, err := m.currentBreakpoint()
 	if err != nil {
-		return messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
+		return func() tea.Msg {
+			return messages.Error(fmt.Errorf("error clearing breakpoint: currentBreakpoint %w", err))
+		}
 	}
-
-	bps, err := m.debugger.FileBreakpoints(currentFilename)
-	if err != nil {
-		return messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
-	}
-
-	bp, ok := bps[currentLine]
 	if !ok {
 		return nil
 	}
 
-	if err := m.debugger.ToggleBreakpoint(bp.ID); err != nil {
-		return messages.Error(fmt.Errorf("error toggling breakpoint %w", err))
+	if err := m.debugger.ClearBreakpoint(bp.ID); err != nil {
+		return func() tea.Msg {
+			return messages.Error(fmt.Errorf("error clearing breakpoint %w", err))
+		}
 	}
-
-	return nil
+	return func() tea.Msg {
+		return messages.DebuggerBreakpointCleared{}
+	}
 }
 
 func (m Model) selectBreakpoint() (int, error) {
-	currentLine := m.viewport.CurrentLineNumber()
-
-	currentFilename, err := m.debugger.CurrentFilename()
+	bp, ok, err := m.currentBreakpoint()
 	if err != nil {
-		return 0, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
+		return 0, fmt.Errorf("error selecting breakpoint: %w", err)
 	}
-
-	bps, err := m.debugger.FileBreakpoints(currentFilename)
-	if err != nil {
-		return 0, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
-	}
-
-	bp, ok := bps[currentLine]
 	if !ok {
 		return 0, nil
 	}
 
 	return bp.ID, nil
+}
+
+func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
+	currentLine := m.viewport.CurrentLineNumber()
+
+	currentFilename, err := m.debugger.CurrentFilename()
+	if err != nil {
+		return debugger.Breakpoint{}, false, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
+	}
+
+	bps, err := m.debugger.FileBreakpoints(currentFilename)
+	if err != nil {
+		return debugger.Breakpoint{}, false, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
+	}
+
+	bp, ok := bps[currentLine]
+	if !ok {
+		return debugger.Breakpoint{}, false, nil
+	}
+
+	return bp, true, nil
 }
