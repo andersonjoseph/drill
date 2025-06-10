@@ -192,7 +192,7 @@ func (d *Debugger) CurrentFileContent() ([]string, error) {
 	line := 0
 	currentLine := state.CurrentThread.Line
 
-	var lines []string // Use slice instead of strings.Builder
+	var lines []string
 
 	for scanner.Scan() {
 		line++
@@ -259,13 +259,20 @@ func (d Debugger) LocalVariables() ([]Variable, error) {
 		return []Variable{}, fmt.Errorf("eerror getting local variables: debugger state: %w", err)
 	}
 
-	vars, err := d.client.ListLocalVariables(
-		api.EvalScope{
-			GoroutineID: state.CurrentThread.GoroutineID,
-		}, d.lcfg)
+	scope := api.EvalScope{
+		GoroutineID: state.CurrentThread.GoroutineID,
+	}
+
+	vars, err := d.client.ListLocalVariables(scope, d.lcfg)
 	if err != nil {
 		return []Variable{}, fmt.Errorf("error listing local variables: %w", err)
 	}
+
+	args, err := d.client.ListFunctionArgs(scope, d.lcfg)
+	if err != nil {
+		return []Variable{}, fmt.Errorf("error listing local args: %w", err)
+	}
+	vars = append(vars, args...)
 
 	localVariables := make([]Variable, len(vars))
 	for i := range vars {
