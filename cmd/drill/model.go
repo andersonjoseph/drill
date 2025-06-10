@@ -46,6 +46,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.WindowFocused:
 		m.focusedWindow = int(msg)
 
+	case messages.ModalOpened:
+		if msg {
+			m.focusedWindow = 0
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		return m, m.handleResize(msg)
 

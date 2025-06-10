@@ -302,7 +302,7 @@ func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	fmt.Fprint(w, listItem.Render(m.Width()))
 }
 
-func (d listDelegate) Height() int                               { return 1 }
+func (d listDelegate) Height() int                               { return 2 }
 func (d listDelegate) Spacing() int                              { return 0 }
 func (d listDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
 
