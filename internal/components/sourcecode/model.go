@@ -100,7 +100,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case messages.OpenedFile:
-		f, err := m.debugger.SetFileContent(msg.Filename)
+		f, err := m.debugger.FileContent(msg.Filename)
 		if err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(fmt.Errorf("error handling OpenedFile: %w", err))

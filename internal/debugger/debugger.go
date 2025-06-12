@@ -184,12 +184,12 @@ func (d *Debugger) CurrentFile() (fileContent, error) {
 	return d.fileContent, nil
 }
 
-func (d *Debugger) FileContent(filename string) ([]string, error) {
+func (d *Debugger) FileContent(filename string) (fileContent, error) {
 	if _, err := d.SetFileContent(filename); err != nil {
-		return nil, fmt.Errorf("error getting current file content: setting current file: %w", err)
+		return fileContent{}, fmt.Errorf("error getting current file content: setting current file: %w", err)
 	}
 
-	return d.fileContent.Content, nil
+	return d.fileContent , nil
 }
 
 func (d *Debugger) SetFileContent(filename string) (fileContent, error) {

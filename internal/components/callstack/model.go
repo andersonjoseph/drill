@@ -263,7 +263,7 @@ func (i listItem) Render(width int) string {
 		style = frameStyleDefault
 	}
 
-	functionName := lipgloss.NewStyle().Foreground(components.ColorPurple).Render(i.frame.FunctionName)
+	functionName := lipgloss.NewStyle().Foreground(components.ColorPurple).Render(i.frame.FunctionName + "()")
 	line := style.Render(fmt.Sprintf("%d", i.frame.Line))
 
 	if i.isFocused {
@@ -272,7 +272,7 @@ func (i listItem) Render(width int) string {
 
 	truncatedFilename := style.Render(truncPath(i.frame.Filename, width-2))
 
-	item := fmt.Sprintf("%s()\n %s:%s", functionName, truncatedFilename, line)
+	item := fmt.Sprintf("%s\n %s:%s", functionName, truncatedFilename, line)
 
 	stackFrame :=
 		lipgloss.JoinHorizontal(lipgloss.Top, indicator, item)
