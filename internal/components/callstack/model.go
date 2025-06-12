@@ -21,22 +21,22 @@ var (
 	paginatorStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen).PaddingRight(2)
 	paginatorStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite).PaddingRight(2)
 
-	frameStyleTop     lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
-	frameStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorPurple).Bold(true)
-	frameStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
+	frameStyleSelected lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
+	frameStyleDefault  lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
 
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
 )
 
 type Model struct {
-	ID        int
-	title     string
-	IsFocused bool
-	width     int
-	height    int
-	list      list.Model
-	debugger  *debugger.Debugger
+	ID             int
+	title          string
+	IsFocused      bool
+	width          int
+	height         int
+	list           list.Model
+	debugger       *debugger.Debugger
+	openedFilename string
 }
 
 func New(id int, debugger *debugger.Debugger) Model {
@@ -73,7 +73,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
-		m.list.SetDelegate(listDelegate{parentFocused: m.IsFocused})
+		m.list.SetDelegate(listDelegate{
+			parentFocused:  m.IsFocused,
+			openedFilename: m.openedFilename,
+		})
 
 		if !m.IsFocused {
 			m.list.Styles.PaginationStyle = paginatorStyleDefault
@@ -92,6 +95,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, nil
 
+	case messages.OpenedFile:
+		m.openedFilename = msg.Filename
+		m.list.SetDelegate(listDelegate{
+			parentFocused:  m.IsFocused,
+			openedFilename: m.openedFilename,
+		})
+		return m, nil
+
 	case messages.RefreshContent, messages.DebuggerRestarted, messages.DebuggerStepped:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg {
@@ -105,6 +116,27 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		var cmd tea.Cmd
 		if !m.IsFocused {
 			return m, nil
+		}
+
+		if msg.String() == "enter" {
+			if m.list.SelectedItem() == nil {
+				return m, nil
+			}
+			item := m.list.SelectedItem().(listItem)
+			if _, err := m.debugger.SetFileContent(item.frame.Filename); err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(fmt.Errorf("error jumping to stack frame: %w", err))
+				}
+			}
+
+			m.openedFilename = item.frame.Filename
+
+			return m, func() tea.Msg {
+				return messages.OpenedFile{
+					Filename: item.frame.Filename,
+					Line:     item.frame.Line,
+				}
+			}
 		}
 
 		m.list, cmd = m.list.Update(msg)
@@ -141,6 +173,17 @@ func (m *Model) updateContent() error {
 	if err != nil {
 		return fmt.Errorf("erorr updating content: %w", err)
 	}
+
+	if len(stack) > 0 {
+		m.openedFilename = stack[0].Filename
+	} else {
+		m.openedFilename = ""
+	}
+
+	m.list.SetDelegate(listDelegate{
+		parentFocused:  m.IsFocused,
+		openedFilename: m.openedFilename,
+	})
 
 	m.list.SetItems(stackToListItems(stack))
 	return nil
@@ -194,13 +237,15 @@ func truncPath(path string, maxWidth int) string {
 }
 
 type listDelegate struct {
-	parentFocused bool
+	parentFocused  bool
+	openedFilename string
 }
 
 func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	listItem := item.(listItem)
 
 	listItem.isFocused = m.Index() == index && d.parentFocused
+	listItem.isSelected = d.openedFilename == listItem.frame.Filename
 	fmt.Fprint(w, listItem.Render(m.Width()))
 }
 
@@ -209,8 +254,9 @@ func (d listDelegate) Spacing() int                              { return 0 }
 func (d listDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
 
 type listItem struct {
-	frame     debugger.StackFrame
-	isFocused bool
+	frame      debugger.StackFrame
+	isFocused  bool
+	isSelected bool
 }
 
 func (i listItem) FilterValue() string { return "" }
@@ -219,20 +265,25 @@ func (i listItem) Render(width int) string {
 	var style lipgloss.Style
 	var indicator string
 
-	truncatedFilename := truncPath(i.frame.Filename, width-2)
-
-	item := fmt.Sprintf("%s()\n %s:%d", i.frame.FunctionName, truncatedFilename, i.frame.Line)
-
-	if i.isFocused {
-		style = frameStyleFocused
-	} else if i.frame.Index == 0 {
-		style = frameStyleTop
+	if i.isSelected {
+		style = frameStyleSelected
 	} else {
 		style = frameStyleDefault
 	}
 
+	functionName := lipgloss.NewStyle().Foreground(components.ColorPurple).Render(i.frame.FunctionName)
+	line := style.Render(fmt.Sprintf("%d", i.frame.Line))
+
+	if i.isFocused {
+		functionName = "▶ " + functionName
+	}
+
+	truncatedFilename := style.Render(truncPath(i.frame.Filename, width-2))
+
+	item := fmt.Sprintf("%s()\n %s:%s", functionName, truncatedFilename, line)
+
 	stackFrame :=
-		lipgloss.JoinHorizontal(lipgloss.Top, indicator, style.Render(item))
+		lipgloss.JoinHorizontal(lipgloss.Top, indicator, item)
 
 	return lipgloss.NewStyle().
 		Width(width).

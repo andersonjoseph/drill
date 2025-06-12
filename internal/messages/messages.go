@@ -18,3 +18,8 @@ type BreakpointSelected int
 
 type DebuggerStdoutReceived string
 type DebuggerStderrReceived string
+
+type OpenedFile struct {
+	Filename string
+	Line     int
+}

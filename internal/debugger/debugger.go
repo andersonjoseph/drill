@@ -67,13 +67,19 @@ func newStackFrame(sf api.Stackframe, i int) StackFrame {
 	}
 }
 
+type fileContent struct {
+	Filename string
+	Content  []string
+}
+
 type Debugger struct {
-	client      *rpc2.RPCClient
-	ready       chan string
-	Stdout      chan string
-	Stderr      chan string
-	lcfg        api.LoadConfig
-	currentFile *os.File
+	client               *rpc2.RPCClient
+	ready                chan string
+	Stdout               chan string
+	Stderr               chan string
+	lcfg                 api.LoadConfig
+	fileContent          fileContent
+	debuggingFileContent fileContent
 }
 
 func New(filename string) (*Debugger, error) {
@@ -147,60 +153,59 @@ func (d *Debugger) startProcess(filename string) error {
 	return nil
 }
 
-func (d *Debugger) CurrentFile() (*os.File, error) {
+func (d *Debugger) CurrentFile() (fileContent, error) {
 	state, err := d.client.GetState()
 	if err != nil {
-		return nil, fmt.Errorf("error getting current file: debugger state: %w", err)
+		return fileContent{}, fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
-	filename := state.CurrentThread.File
-	if d.currentFile == nil || d.currentFile.Name() != filename {
-		if d.currentFile != nil {
-			if err := d.currentFile.Close(); err != nil {
-				return nil, fmt.Errorf("error getting current file content: error closing file: %s: %w", filename, err)
-			}
-		}
-
-		f, err := os.Open(filename)
-		if err != nil {
-			return nil, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
-		}
-		d.currentFile = f
+	if _, err = d.SetFileContent(state.CurrentThread.File); err != nil {
+		return fileContent{}, fmt.Errorf("error getting current file content: setting current file: %w", err)
 	}
 
-	return d.currentFile, nil
+	return d.fileContent, nil
 }
 
-func (d *Debugger) CurrentFileContent() ([]string, error) {
+func (d *Debugger) FileContent(filename string) ([]string, error) {
+	if _, err := d.SetFileContent(filename); err != nil {
+		return nil, fmt.Errorf("error getting current file content: setting current file: %w", err)
+	}
+
+	return d.fileContent.Content, nil
+}
+
+func (d *Debugger) SetFileContent(filename string) (fileContent, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return fileContent{}, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
+	}
+	defer f.Close()
+
 	state, err := d.client.GetState()
 	if err != nil {
-		return nil, fmt.Errorf("error getting current file content: debugger state: %w", err)
+		return fileContent{}, fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
-	file, err := d.CurrentFile()
+	bps, err := d.FileBreakpoints(filename)
 	if err != nil {
-		return nil, fmt.Errorf("error getting current file content: get current file: %w", err)
+		return fileContent{}, fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
 	}
 
-	bps, err := d.FileBreakpoints(file.Name())
-	if err != nil {
-		return nil, fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
+	lineNumber := 0
+	currentLine := 0
+	if state.CurrentThread.File == filename {
+		currentLine = state.CurrentThread.Line
 	}
 
-	file.Seek(0, 0)
-	scanner := bufio.NewScanner(file)
+	lines := make([]string, 0)
 
-	line := 0
-	currentLine := state.CurrentThread.Line
-
-	var lines []string
-
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line++
-		bp, isBpInLine := bps[line]
+		lineNumber++
+		bp, isBpInLine := bps[lineNumber]
 
 		var prefix string
-		if line == currentLine {
+		if lineNumber == currentLine {
 			if isBpInLine && !bp.Disabled {
 				prefix = arrowInBreakpoint
 			} else {
@@ -218,14 +223,19 @@ func (d *Debugger) CurrentFileContent() ([]string, error) {
 
 		colorizedLine, err := colorize(scanner.Text())
 		if err != nil {
-			return nil, fmt.Errorf("error colorizing line: %v", err)
+			return fileContent{}, fmt.Errorf("error colorizing line: %v", err)
 		}
 
 		cleanColorizedLine := strings.ReplaceAll(colorizedLine, "\n", "")
 		lines = append(lines, prefix+cleanColorizedLine)
 	}
 
-	return lines, nil
+	d.fileContent = fileContent{
+		Filename: filename,
+		Content:  lines,
+	}
+
+	return d.fileContent, nil
 }
 
 func (d Debugger) FileBreakpoints(filename string) (map[int]Breakpoint, error) {
@@ -243,15 +253,6 @@ func (d Debugger) FileBreakpoints(filename string) (map[int]Breakpoint, error) {
 	}
 
 	return bpsInThisFile, nil
-}
-
-func (d *Debugger) CurrentFilename() (string, error) {
-	f, err := d.CurrentFile()
-	if err != nil {
-		return "", fmt.Errorf("error getting the current filename: %w", err)
-	}
-
-	return f.Name(), nil
 }
 
 func (d Debugger) LocalVariables() ([]Variable, error) {

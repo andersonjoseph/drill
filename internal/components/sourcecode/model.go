@@ -83,7 +83,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		line, err := m.debugger.CurrentLine()
 		if err != nil {
 			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error updating content: %w", err))
+				return messages.Error(fmt.Errorf("error handling debugger step: %w", err))
 			}
 		}
 		m.viewport.jumpToLine(line)
@@ -98,6 +98,22 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		return m, nil
+
+	case messages.OpenedFile:
+		f, err := m.debugger.SetFileContent(msg.Filename)
+		if err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(fmt.Errorf("error handling OpenedFile: %w", err))
+			}
+		}
+
+		m.currentFilename = f.Filename
+		m.viewport.setContent(f.Content)
+		m.viewport.jumpToLine(msg.Line)
+
+		return m, func() tea.Msg {
+			return messages.WindowFocused(m.ID)
+		}
 
 	case tea.KeyMsg:
 		if !m.IsFocused {
@@ -205,17 +221,13 @@ func (m Model) View() string {
 }
 
 func (m *Model) updateContent() error {
-	content, err := m.debugger.CurrentFileContent()
+	f, err := m.debugger.CurrentFile()
 	if err != nil {
 		return fmt.Errorf("error updating content: %w", err)
 	}
 
-	m.viewport.setContent(content)
-
-	m.currentFilename, err = m.debugger.CurrentFilename()
-	if err != nil {
-		return fmt.Errorf("error getting current file: %w", err)
-	}
+	m.currentFilename = f.Filename
+	m.viewport.setContent(f.Content)
 
 	return nil
 }
@@ -298,12 +310,12 @@ func (m Model) selectBreakpoint() (int, error) {
 func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
 	currentLine := m.viewport.CurrentLineNumber()
 
-	currentFilename, err := m.debugger.CurrentFilename()
+	f, err := m.debugger.CurrentFile()
 	if err != nil {
 		return debugger.Breakpoint{}, false, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
 	}
 
-	bps, err := m.debugger.FileBreakpoints(currentFilename)
+	bps, err := m.debugger.FileBreakpoints(f.Filename)
 	if err != nil {
 		return debugger.Breakpoint{}, false, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
 	}
