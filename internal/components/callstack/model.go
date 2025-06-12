@@ -119,7 +119,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, nil
 			}
 			item := m.list.SelectedItem().(listItem)
-			if _, err := m.debugger.SetFileContent(item.frame.Filename); err != nil {
+			if _, err := m.debugger.GoToFile(item.frame.Filename); err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(fmt.Errorf("error entering to stack frame: %w", err))
 				}

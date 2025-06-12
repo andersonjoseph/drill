@@ -100,7 +100,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case messages.OpenedFile:
-		f, err := m.debugger.FileContent(msg.Filename)
+		f, err := m.debugger.GoToFile(msg.Filename)
 		if err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(fmt.Errorf("error handling OpenedFile: %w", err))
@@ -221,7 +221,7 @@ func (m Model) View() string {
 }
 
 func (m *Model) updateContent() error {
-	f, err := m.debugger.CurrentFile()
+	f, err := m.debugger.GoToCurrentFile()
 	if err != nil {
 		return fmt.Errorf("error updating content: %w", err)
 	}
@@ -310,7 +310,7 @@ func (m Model) selectBreakpoint() (int, error) {
 func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
 	currentLine := m.viewport.CurrentLineNumber()
 
-	f, err := m.debugger.CurrentFile()
+	f, err := m.debugger.GoToCurrentFile()
 	if err != nil {
 		return debugger.Breakpoint{}, false, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
 	}

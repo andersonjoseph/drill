@@ -86,13 +86,12 @@ type Output struct {
 }
 
 type Debugger struct {
-	client               *rpc2.RPCClient
-	ready                chan string
-	Output               chan Output
-	lcfg                 api.LoadConfig
-	fileContent          fileContent
-	debuggingFileContent fileContent
-	isReady bool
+	client      *rpc2.RPCClient
+	ready       chan string
+	Output      chan Output
+	lcfg        api.LoadConfig
+	fileContent fileContent
+	isReady     bool
 }
 
 func New(filename string) (*Debugger, error) {
@@ -173,28 +172,24 @@ func (d *Debugger) startProcess(filename string) error {
 	return nil
 }
 
-func (d *Debugger) CurrentFile() (fileContent, error) {
+func (d *Debugger) ActiveFile() fileContent {
+	return d.fileContent
+}
+
+func (d *Debugger) GoToCurrentFile() (fileContent, error) {
 	state, err := d.client.GetState()
 	if err != nil {
 		return fileContent{}, fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
-	if _, err = d.SetFileContent(state.CurrentThread.File); err != nil {
+	if _, err = d.GoToFile(state.CurrentThread.File); err != nil {
 		return fileContent{}, fmt.Errorf("error getting current file content: setting current file: %w", err)
 	}
 
 	return d.fileContent, nil
 }
 
-func (d *Debugger) FileContent(filename string) (fileContent, error) {
-	if _, err := d.SetFileContent(filename); err != nil {
-		return fileContent{}, fmt.Errorf("error getting current file content: setting current file: %w", err)
-	}
-
-	return d.fileContent , nil
-}
-
-func (d *Debugger) SetFileContent(filename string) (fileContent, error) {
+func (d *Debugger) GoToFile(filename string) (fileContent, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return fileContent{}, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
