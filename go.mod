@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/go-delve/delve v1.24.2
+	github.com/muesli/reflow v0.3.0
 )
 
 require (

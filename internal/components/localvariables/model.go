@@ -39,13 +39,14 @@ var (
 )
 
 type Model struct {
-	ID        int
-	title     string
-	IsFocused bool
-	width     int
-	height    int
-	list      list.Model
-	debugger  *debugger.Debugger
+	ID             int
+	title          string
+	IsFocused      bool
+	width          int
+	height         int
+	list           list.Model
+	variableViewer VariableViewerModel
+	debugger       *debugger.Debugger
 }
 
 func New(id int, debugger *debugger.Debugger) Model {
@@ -69,10 +70,11 @@ func New(id int, debugger *debugger.Debugger) Model {
 	l.Paginator = p
 
 	return Model{
-		ID:       id,
-		title:    "Local Variables",
-		list:     l,
-		debugger: debugger,
+		ID:             id,
+		title:          "Local Variables",
+		list:           l,
+		debugger:       debugger,
+		variableViewer: newVariableViewer(id),
 	}
 }
 
@@ -81,7 +83,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
-
+		m.variableViewer.setFocus(m.IsFocused)
 		m.list.SetDelegate(listDelegate{parentFocused: m.IsFocused})
 
 		if !m.IsFocused {
@@ -100,13 +102,25 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.list.SetHeight(msg.Height)
 		m.list.SetWidth(msg.Width)
 		m.list.Styles.NoItems = noItemsStyle.Width(msg.Width)
-		return m, nil
+
+		var cmd tea.Cmd
+		m.variableViewer, cmd = m.variableViewer.Update(msg)
+		return m, cmd
 
 	case messages.RefreshContent, messages.DebuggerRestarted, messages.DebuggerStepped:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(err)
 			}
+		}
+
+		if m.variableViewer.isOpen {
+			if m.list.SelectedItem() == nil {
+				return m, nil
+			}
+			lv := m.list.SelectedItem().(listItem)
+			m.variableViewer.setContent(lv.variable)
+			m.variableViewer.setIsOpen(true)
 		}
 
 		return m, nil
@@ -116,15 +130,39 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "enter" {
+			if m.list.SelectedItem() == nil {
+				return m, nil
+			}
+			lv := m.list.SelectedItem().(listItem)
+			m.variableViewer.setContent(lv.variable)
+			m.variableViewer.setIsOpen(true)
+
+			return m, nil
+		}
+
 		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		return m, cmd
+		var cmds []tea.Cmd
+
+		if msg.String() != "esc" {
+			m.list, cmd = m.list.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+
+		m.variableViewer, cmd = m.variableViewer.Update(msg)
+		cmds = append(cmds, cmd)
+
+		return m, tea.Batch(cmds...)
 	}
 
 	return m, nil
 }
 
 func (m Model) View() string {
+	if m.variableViewer.isOpen {
+		return m.variableViewer.View()
+	}
+
 	var style lipgloss.Style
 	if m.IsFocused {
 		style = listFocusedStyle
@@ -139,6 +177,7 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Top,
 		topBorder,
 		style.
+			Width(m.width).
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(style.GetForeground()).
 			BorderTop(false).
@@ -191,13 +230,17 @@ func (i listItem) Render(width int) string {
 		valueStyle = variableStyleDefault.value
 	}
 
-	name := nameStyle.Render(i.variable.Name + ": ")
+	name := i.variable.Name
+	if i.isFocused {
+		name = "▶ " + name
+	}
+
 	value := valueStyle.
 		Render(i.variable.Value)
 
 	return lipgloss.NewStyle().
-		Width(width).
-		Render(name + value)
+		MaxWidth(width).
+		Render(nameStyle.Render(name)+":", value)
 }
 
 func variablesToListItems(vars []debugger.Variable) []list.Item {

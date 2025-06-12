@@ -35,8 +35,9 @@ var (
 )
 
 type Variable struct {
-	Name  string
-	Value string
+	Name           string
+	Value          string
+	MultilineValue string
 }
 
 type Breakpoint struct {
@@ -83,8 +84,8 @@ func New(filename string) (*Debugger, error) {
 			FollowPointers:     true,
 			MaxVariableRecurse: 4,
 			MaxStringLen:       32,
-			MaxArrayValues:     8,
-			MaxStructFields:    8,
+			MaxArrayValues:     32,
+			MaxStructFields:    32,
 		},
 	}
 	d.startProcess(filename)
@@ -277,8 +278,9 @@ func (d Debugger) LocalVariables() ([]Variable, error) {
 	localVariables := make([]Variable, len(vars))
 	for i := range vars {
 		localVariables[i] = Variable{
-			Name:  vars[i].Name,
-			Value: vars[i].SinglelineString(),
+			Name:           vars[i].Name,
+			Value:          vars[i].SinglelineString(),
+			MultilineValue: vars[i].MultilineString(" ", "%#v"),
 		}
 	}
 
@@ -444,7 +446,7 @@ func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
 func colorize(content string) (string, error) {
 	sb := strings.Builder{}
 
-	err := quick.Highlight(&sb, content, "go", "terminal8", "native")
+	err := quick.Highlight(&sb, content, "go", "terminal256", "gruvbox")
 	if err != nil {
 		return "", fmt.Errorf("error highlighting the source code: %w", err)
 	}
