@@ -92,6 +92,7 @@ type Debugger struct {
 	lcfg                 api.LoadConfig
 	fileContent          fileContent
 	debuggingFileContent fileContent
+	isReady bool
 }
 
 func New(filename string) (*Debugger, error) {
@@ -145,8 +146,9 @@ func (d *Debugger) startProcess(filename string) error {
 		defer stdout.Close()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			if strings.Contains(scanner.Text(), "listening") {
+			if !d.isReady && strings.Contains(scanner.Text(), "listening") {
 				d.ready <- addressRegex.FindString(scanner.Text())
+				d.isReady = true
 				continue
 			}
 
