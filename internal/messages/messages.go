@@ -5,7 +5,7 @@ type Error error
 type RefreshContent struct{}
 
 type WindowFocused int
-type ModalOpened bool
+type TextInputFocused bool
 
 type DebuggerStepped struct{}
 type DebuggerRestarted struct{}

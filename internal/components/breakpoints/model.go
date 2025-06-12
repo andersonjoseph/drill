@@ -177,7 +177,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.conditionInput, _ = m.conditionInput.Update(messageNewContent(bp.breakpoint.Condition))
 
 			return m, func() tea.Msg {
-				return messages.ModalOpened(true)
+				return messages.TextInputFocused(true)
 			}
 		}
 

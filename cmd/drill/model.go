@@ -12,12 +12,13 @@ import (
 )
 
 type model struct {
-	sidebar       sidebar
-	sourceCode    sourcecode.Model
-	output        output.Model
-	debugger      *debugger.Debugger
-	logs          []string
-	focusedWindow int
+	sidebar          sidebar
+	sourceCode       sourcecode.Model
+	output           output.Model
+	debugger         *debugger.Debugger
+	logs             []string
+	textInputFocused bool
+	focusedWindow    int
 }
 
 func (m model) Init() tea.Cmd {
@@ -28,7 +29,6 @@ func (m model) Init() tea.Cmd {
 		},
 		func() tea.Msg {
 			return messages.WindowFocused(4)
-
 		},
 		m.output.Init(),
 	)
@@ -46,21 +46,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.WindowFocused:
 		m.focusedWindow = int(msg)
 
-	case messages.ModalOpened:
-		if msg {
-			m.focusedWindow = 0
-		}
+	case messages.TextInputFocused:
+		m.textInputFocused = bool(msg)
 		return m, nil
 
 	case tea.WindowSizeMsg:
 		return m, m.handleResize(msg)
 
 	case tea.KeyMsg:
-		if m.focusedWindow != 0 && (msg.String() == "q" || msg.String() == "ctrl+c") {
+		if !m.textInputFocused && (msg.String() == "q" || msg.String() == "ctrl+c") {
 			return m, tea.Quit
 		}
 
-		if m.focusedWindow != 0 && msg.String() != "0" {
+		if !m.textInputFocused && msg.String() != "0" {
 			if focusedWindow, err := strconv.Atoi(msg.String()); err == nil {
 				return m, func() tea.Msg {
 					return messages.WindowFocused(focusedWindow)
