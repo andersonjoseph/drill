@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type messageNewCondition string
+
 type conditionInputModel struct {
 	id        int
 	isFocused bool
@@ -20,7 +22,6 @@ type conditionInputModel struct {
 func newConditionInputModel(id int) conditionInputModel {
 	ti := textinput.New()
 	ti.Placeholder = "condition"
-	ti.Width = 0
 
 	return conditionInputModel{
 		id:        id,
@@ -39,9 +40,15 @@ func (m conditionInputModel) Update(msg tea.Msg) (conditionInputModel, tea.Cmd) 
 		if msg.String() == "esc" {
 			m.setFocus(false)
 			m.textInput.SetValue("")
-			return m, func() tea.Msg {
-				return messages.WindowFocused(m.id)
-			}
+
+			return m, tea.Batch(
+				func() tea.Msg {
+					return messages.TextInputFocused(false)
+				},
+				func() tea.Msg {
+					return messages.WindowFocused(m.id)
+				},
+			)
 		}
 
 		if msg.String() == "enter" {
@@ -49,6 +56,9 @@ func (m conditionInputModel) Update(msg tea.Msg) (conditionInputModel, tea.Cmd) 
 			content := m.textInput.Value()
 			m.textInput.SetValue("")
 			return m, tea.Batch(
+				func() tea.Msg {
+					return messages.TextInputFocused(false)
+				},
 				func() tea.Msg {
 					return messages.WindowFocused(m.id)
 				},
@@ -63,14 +73,6 @@ func (m conditionInputModel) Update(msg tea.Msg) (conditionInputModel, tea.Cmd) 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.textInput.Width = m.width - 3
-		return m, nil
-
-	case messageClearContent:
-		m.textInput.SetValue("")
-		return m, nil
-
-	case messageNewContent:
-		m.textInput.SetValue(string(msg))
 		return m, nil
 	}
 
@@ -96,4 +98,8 @@ func (m conditionInputModel) View() string {
 func (m *conditionInputModel) setFocus(f bool) {
 	m.isFocused = f
 	m.textInput.Focus()
+}
+
+func (m *conditionInputModel) setContent(c string) {
+	m.textInput.SetValue(c)
 }

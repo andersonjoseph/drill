@@ -36,6 +36,7 @@ var (
 
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(components.ColorGreen))
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
+	listItemStyle    lipgloss.Style = lipgloss.NewStyle()
 )
 
 type Model struct {
@@ -143,7 +144,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 		var cmd tea.Cmd
 		var cmds []tea.Cmd
-
 		if msg.String() != "esc" {
 			m.list, cmd = m.list.Update(msg)
 			cmds = append(cmds, cmd)
@@ -220,27 +220,23 @@ type listItem struct {
 
 func (i listItem) FilterValue() string { return "" }
 func (i listItem) Render(width int) string {
-	var nameStyle, valueStyle lipgloss.Style
-
+	var style variableStyle
 	if i.isFocused {
-		nameStyle = variableFocusedStyle.name
-		valueStyle = variableFocusedStyle.value
+		style = variableFocusedStyle
 	} else {
-		nameStyle = variableStyleDefault.name
-		valueStyle = variableStyleDefault.value
+		style = variableStyleDefault
 	}
 
-	name := i.variable.Name
+	name := style.name.Render(i.variable.Name)
 	if i.isFocused {
 		name = "▶ " + name
 	}
-
-	value := valueStyle.
+	value := style.value.
 		Render(i.variable.Value)
 
-	return lipgloss.NewStyle().
+	return listItemStyle.
 		MaxWidth(width).
-		Render(nameStyle.Render(name)+":", value)
+		Render(name+":", value)
 }
 
 func variablesToListItems(vars []debugger.Variable) []list.Item {

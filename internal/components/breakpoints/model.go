@@ -174,8 +174,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			bp := m.list.SelectedItem().(listItem)
 
 			m.conditionInput.setFocus(true)
-			m.conditionInput, _ = m.conditionInput.Update(messageNewContent(bp.breakpoint.Condition))
-
+			m.conditionInput.setContent(bp.breakpoint.Condition)
 			return m, func() tea.Msg {
 				return messages.TextInputFocused(true)
 			}
