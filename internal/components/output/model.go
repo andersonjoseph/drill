@@ -15,6 +15,9 @@ import (
 var (
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
+
+	stdoutLabelStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
+	stderrLabelStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorOrange)
 )
 
 type Model struct {
@@ -40,23 +43,18 @@ func New(id int, title string, d *debugger.Debugger) Model {
 	return m
 }
 
-func waitForStdout(c chan string) tea.Cmd {
+func waitForDebuggerOutput(c chan debugger.Output) tea.Cmd {
 	return func() tea.Msg {
-		return messages.DebuggerStdoutReceived(<-c)
-	}
-}
-
-func waitForStderr(c chan string) tea.Cmd {
-	return func() tea.Msg {
-		return messages.DebuggerStderrReceived(<-c)
+		o := <-c
+		if o.Source == debugger.SourceStderr {
+			return messages.DebuggerStderrReceived(o.Content)
+		}
+		return messages.DebuggerStdoutReceived(o.Content)
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		waitForStdout(m.debugger.Stdout),
-		waitForStderr(m.debugger.Stderr),
-	)
+	return waitForDebuggerOutput(m.debugger.Output)
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -71,18 +69,20 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case messages.DebuggerStdoutReceived:
-		m.content += "\n" + string(msg)
+		label := stdoutLabelStyle.Render("[stdout] ")
+		m.content += "\n" + label + string(msg)
 		m.viewport.SetContent(m.content)
 		m.viewport.ScrollDown(1)
 
-		return m, waitForStdout(m.debugger.Stdout)
+		return m, waitForDebuggerOutput(m.debugger.Output)
 
 	case messages.DebuggerStderrReceived:
-		m.content += "\n" + string(msg)
+		label := stderrLabelStyle.Render("[stderr] ")
+		m.content += "\n" + label + string(msg)
 		m.viewport.SetContent(m.content)
 		m.viewport.ScrollDown(1)
 
-		return m, waitForStderr(m.debugger.Stderr)
+		return m, waitForDebuggerOutput(m.debugger.Output)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width

@@ -72,11 +72,23 @@ type fileContent struct {
 	Content  []string
 }
 
+type outputSource int
+
+const (
+	SourceUnknown outputSource = iota
+	SourceStdout
+	SourceStderr
+)
+
+type Output struct {
+	Content string
+	Source  outputSource
+}
+
 type Debugger struct {
 	client               *rpc2.RPCClient
 	ready                chan string
-	Stdout               chan string
-	Stderr               chan string
+	Output               chan Output
 	lcfg                 api.LoadConfig
 	fileContent          fileContent
 	debuggingFileContent fileContent
@@ -85,7 +97,7 @@ type Debugger struct {
 func New(filename string) (*Debugger, error) {
 	d := &Debugger{
 		ready:  make(chan string),
-		Stdout: make(chan string),
+		Output: make(chan Output),
 		lcfg: api.LoadConfig{
 			FollowPointers:     true,
 			MaxVariableRecurse: 4,
@@ -138,7 +150,10 @@ func (d *Debugger) startProcess(filename string) error {
 				continue
 			}
 
-			d.Stdout <- scanner.Text()
+			d.Output <- Output{
+				Source:  SourceStdout,
+				Content: scanner.Text(),
+			}
 		}
 	}()
 
@@ -146,7 +161,10 @@ func (d *Debugger) startProcess(filename string) error {
 		defer stderr.Close()
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			d.Stderr <- scanner.Text()
+			d.Output <- Output{
+				Source:  SourceStderr,
+				Content: scanner.Text(),
+			}
 		}
 	}()
 
