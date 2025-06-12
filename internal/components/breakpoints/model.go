@@ -15,6 +15,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	breakpointSymbol = "⏺"
+)
+
 var (
 	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(components.ColorGrey)
 
@@ -27,8 +31,11 @@ var (
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
 
-	indicatorEnabled  = lipgloss.NewStyle().Foreground(components.ColorRed).Render("⏺ ")
-	indicatorDisabled = lipgloss.NewStyle().Foreground(components.ColorGrey).Render("⏺ ")
+	indicatorEnabled  = lipgloss.NewStyle().Foreground(components.ColorRed).Render(breakpointSymbol, " ")
+	indicatorDisabled = lipgloss.NewStyle().Foreground(components.ColorGrey).Render(breakpointSymbol, " ")
+	conditionStyle    = lipgloss.NewStyle().Foreground(components.ColorYellow)
+
+	listItemStyle = lipgloss.NewStyle()
 )
 
 type Model struct {
@@ -97,7 +104,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.conditionInput, _ = m.conditionInput.Update(tea.WindowSizeMsg{Width: m.width})
 		return m, nil
 
-	case messages.RefreshContent, messages.DebuggerRestarted, messages.DebuggerBreakpointCreated, messages.DebuggerBreakpointToggled, messages.DebuggerBreakpointCleared:
+	case
+		messages.RefreshContent,
+		messages.DebuggerRestarted,
+		messages.DebuggerBreakpointCreated,
+		messages.DebuggerBreakpointToggled,
+		messages.DebuggerBreakpointCleared:
+
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(err)
@@ -313,21 +326,19 @@ type listItem struct {
 func (i listItem) FilterValue() string { return "" }
 
 func (i listItem) Render(width int) string {
-	var style lipgloss.Style
 	var indicator string
-
-	item := truncPath(i.breakpoint.Name, width-3)
-
 	if i.breakpoint.Disabled {
 		indicator = indicatorDisabled
 	} else {
 		indicator = indicatorEnabled
 	}
 
+	item := truncPath(i.breakpoint.Name, width-3)
 	if i.breakpoint.Condition != "" {
-		item += lipgloss.NewStyle().Foreground(components.ColorYellow).Render("\n\twhen: " + i.breakpoint.Condition)
+		item += conditionStyle.Render("\n\twhen: " + i.breakpoint.Condition)
 	}
 
+	var style lipgloss.Style
 	if i.isFocused {
 		style = breakpointStyleFocused
 	} else {
@@ -337,7 +348,7 @@ func (i listItem) Render(width int) string {
 	breakpoint :=
 		lipgloss.JoinHorizontal(lipgloss.Top, indicator, style.Render(item))
 
-	return lipgloss.NewStyle().
+	return listItemStyle.
 		Width(width).
 		Render(breakpoint)
 }

@@ -26,6 +26,8 @@ var (
 
 	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
+
+	listItemStyle lipgloss.Style = lipgloss.NewStyle()
 )
 
 type Model struct {
@@ -78,12 +80,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			openedFilename: m.openedFilename,
 		})
 
-		if !m.IsFocused {
-			m.list.Styles.PaginationStyle = paginatorStyleDefault
-		} else {
-			m.list.Styles.PaginationStyle = paginatorStyleFocused
-		}
-
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -125,11 +121,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			item := m.list.SelectedItem().(listItem)
 			if _, err := m.debugger.SetFileContent(item.frame.Filename); err != nil {
 				return m, func() tea.Msg {
-					return messages.Error(fmt.Errorf("error jumping to stack frame: %w", err))
+					return messages.Error(fmt.Errorf("error entering to stack frame: %w", err))
 				}
 			}
-
-			m.openedFilename = item.frame.Filename
 
 			return m, func() tea.Msg {
 				return messages.OpenedFile{
@@ -150,8 +144,10 @@ func (m Model) View() string {
 	var style lipgloss.Style
 	if m.IsFocused {
 		style = listFocusedStyle
+		m.list.Styles.PaginationStyle = paginatorStyleFocused
 	} else {
 		style = listDefaultStyle
+		m.list.Styles.PaginationStyle = paginatorStyleDefault
 	}
 
 	title := style.Render(fmt.Sprintf("[%d] %s", m.ID, m.title))
@@ -174,11 +170,7 @@ func (m *Model) updateContent() error {
 		return fmt.Errorf("erorr updating content: %w", err)
 	}
 
-	if len(stack) > 0 {
-		m.openedFilename = stack[0].Filename
-	} else {
-		m.openedFilename = ""
-	}
+	m.openedFilename = stack[0].Filename
 
 	m.list.SetDelegate(listDelegate{
 		parentFocused:  m.IsFocused,
@@ -285,7 +277,7 @@ func (i listItem) Render(width int) string {
 	stackFrame :=
 		lipgloss.JoinHorizontal(lipgloss.Top, indicator, item)
 
-	return lipgloss.NewStyle().
+	return listItemStyle.
 		Width(width).
 		Render(stackFrame)
 }
