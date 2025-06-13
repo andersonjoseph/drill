@@ -138,7 +138,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.variableViewer.setContent(lv.variable)
 			m.variableViewer.setIsOpen(true)
 
-			return m, nil
+			return m, func() tea.Msg {
+				return messages.WindowTitleChanged{WindowID: m.ID, Title: fmt.Sprintf("Inspecting %s", lv.variable.Name)}
+			}
 		}
 
 		var cmd tea.Cmd

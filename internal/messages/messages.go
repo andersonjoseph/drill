@@ -23,3 +23,8 @@ type OpenedFile struct {
 	Filename string
 	Line     int
 }
+
+type WindowTitleChanged struct {
+	WindowID int
+	Title    string
+}

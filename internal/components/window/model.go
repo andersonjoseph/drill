@@ -41,6 +41,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case messages.WindowTitleChanged:
+		if int(msg.WindowID) != m.ID {
+			return m, nil
+		}
+
+		m.Title = msg.Title
+		return m, nil
+
 	case messages.WindowFocused:
 		m.IsFocused = (int(msg) == m.ID)
 

@@ -92,7 +92,6 @@ func (m model) View() string {
 				m.sidebar[0].View(),
 				m.sidebar[1].View(),
 				m.sidebar[2].View(),
-				//m.sidebar[3].View(),
 			),
 			lipgloss.JoinVertical(
 				lipgloss.Top,
@@ -122,7 +121,7 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 	}
 
 	sidebarAvailableHeight := msg.Height - 4 // e.g., 1px border per component
-	sidebarComponentHeight := sidebarAvailableHeight / 4
+	sidebarComponentHeight := sidebarAvailableHeight / 3
 
 	// --- Main Panel Calculations (Source Code + Output) ---
 	mainPanelWidth := msg.Width - sidebarWidth - mainPanelHPadding

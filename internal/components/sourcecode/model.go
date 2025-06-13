@@ -83,12 +83,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case messages.OpenedFile:
-		f, err := m.debugger.GoToFile(msg.Filename)
-		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error handling OpenedFile: %w", err))
-			}
-		}
+		f := m.debugger.ActiveFile()
 
 		m.currentFilename = f.Filename
 		m.viewport.setContent(f.Content)
