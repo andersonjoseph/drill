@@ -12,26 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/chroma/v2/quick"
-	"github.com/andersonjoseph/drill/internal/components"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/go-delve/delve/service/api"
 	"github.com/go-delve/delve/service/rpc2"
-)
-
-const (
-	arrowSymbol         = " 🢂 "
-	breakpointDotSymbol = " ⏺ "
-)
-
-var (
-	enabledBreakpointDot  = lipgloss.NewStyle().Foreground(components.ColorRed).Render(breakpointDotSymbol)
-	disabledBreakpointDot = lipgloss.NewStyle().Foreground(components.ColorGrey).Render(breakpointDotSymbol)
-
-	arrow             = lipgloss.NewStyle().Foreground(components.ColorGreen).Render(arrowSymbol)
-	arrowInBreakpoint = lipgloss.NewStyle().Foreground(components.ColorRed).Render(arrowSymbol)
-
-	lineNumberStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
 )
 
 type Variable struct {
@@ -195,54 +177,11 @@ func (d *Debugger) GoToFile(filename string) (fileContent, error) {
 		return fileContent{}, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
 	}
 	defer f.Close()
-
-	state, err := d.client.GetState()
-	if err != nil {
-		return fileContent{}, fmt.Errorf("error getting current file content: debugger state: %w", err)
-	}
-
-	bps, err := d.FileBreakpoints(filename)
-	if err != nil {
-		return fileContent{}, fmt.Errorf("error getting current file content: error getting breakpoints: %v", err)
-	}
-
-	lineNumber := 0
-	currentLine := 0
-	if state.CurrentThread.File == filename {
-		currentLine = state.CurrentThread.Line
-	}
-
 	lines := make([]string, 0)
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		lineNumber++
-		bp, isBpInLine := bps[lineNumber]
-
-		var prefix string
-		if lineNumber == currentLine {
-			if isBpInLine && !bp.Disabled {
-				prefix = arrowInBreakpoint
-			} else {
-				prefix = arrow
-			}
-		} else if isBpInLine {
-			if bp.Disabled {
-				prefix = disabledBreakpointDot
-			} else {
-				prefix = enabledBreakpointDot
-			}
-		} else {
-			prefix = "   "
-		}
-
-		colorizedLine, err := colorize(scanner.Text())
-		if err != nil {
-			return fileContent{}, fmt.Errorf("error colorizing line: %v", err)
-		}
-
-		cleanColorizedLine := strings.ReplaceAll(colorizedLine, "\n", "")
-		lines = append(lines, prefix+cleanColorizedLine)
+		lines = append(lines, scanner.Text())
 	}
 
 	d.fileContent = fileContent{
@@ -457,15 +396,4 @@ func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
 		Disabled:  bp.Disabled,
 		Condition: bp.Cond,
 	}
-}
-
-func colorize(content string) (string, error) {
-	sb := strings.Builder{}
-
-	err := quick.Highlight(&sb, content, "go", "terminal256", "gruvbox")
-	if err != nil {
-		return "", fmt.Errorf("error highlighting the source code: %w", err)
-	}
-
-	return sb.String(), nil
 }

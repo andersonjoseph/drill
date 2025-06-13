@@ -2,10 +2,29 @@ package sourcecode
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+const (
+	arrowSymbol         = " 🢂 "
+	breakpointDotSymbol = " ⏺ "
+)
+
+var (
+	enabledBreakpointDot  = lipgloss.NewStyle().Foreground(components.ColorRed).Render(breakpointDotSymbol)
+	disabledBreakpointDot = lipgloss.NewStyle().Foreground(components.ColorGrey).Render(breakpointDotSymbol)
+
+	arrow             = lipgloss.NewStyle().Foreground(components.ColorGreen).Render(arrowSymbol)
+	arrowInBreakpoint = lipgloss.NewStyle().Foreground(components.ColorRed).Render(arrowSymbol)
+
+	lineNumberStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
 )
 
 type Model struct {
@@ -187,14 +206,55 @@ func (m Model) View() string {
 }
 
 func (m *Model) updateContent() error {
-	f, err := m.debugger.GoToCurrentFile()
+	currentFile, err := m.debugger.GoToCurrentFile()
 	if err != nil {
-		return fmt.Errorf("error updating content: %w", err)
+		return fmt.Errorf("error updating content: could not get current file: %w", err)
+	}
+	m.currentFilename = currentFile.Filename
+
+	currentLineNumber, err := m.debugger.CurrentLine()
+	if err != nil {
+		return fmt.Errorf("error updating content: could not get current line: %w", err)
 	}
 
-	m.currentFilename = f.Filename
-	m.viewport.setContent(f.Content)
+	breakpointsInFile, err := m.debugger.FileBreakpoints(currentFile.Filename)
+	if err != nil {
+		return fmt.Errorf("error updating content: could not get breakpoints: %w", err)
+	}
 
+	formattedLines := make([]string, len(currentFile.Content))
+	for i, rawLine := range currentFile.Content {
+		lineNumber := i + 1
+		var prefix string
+
+		bp, isBpInLine := breakpointsInFile[lineNumber]
+
+		if lineNumber == currentLineNumber {
+			if isBpInLine && !bp.Disabled {
+				prefix = arrowInBreakpoint
+			} else {
+				prefix = arrow
+			}
+		} else if isBpInLine {
+			if bp.Disabled {
+				prefix = disabledBreakpointDot
+			} else {
+				prefix = enabledBreakpointDot
+			}
+		} else {
+			prefix = "   "
+		}
+
+		colorizedLine, err := colorize(rawLine)
+		if err != nil {
+			colorizedLine = rawLine
+		}
+
+		cleanColorizedLine := strings.ReplaceAll(colorizedLine, "\n", "")
+		formattedLines[i] = prefix + cleanColorizedLine
+	}
+
+	m.viewport.setContent(formattedLines)
 	return nil
 }
 
@@ -217,7 +277,7 @@ func (m Model) createOrToggleBreakpoint() tea.Cmd {
 	bp, ok, err := m.currentBreakpoint()
 	if err != nil {
 		return func() tea.Msg {
-			return messages.Error(fmt.Errorf("error clearing breakpoint: currentBreakpoint %w", err))
+			return messages.Error(fmt.Errorf("error toggling breakpoint: currentBreakpoint %w", err))
 		}
 	}
 
@@ -292,4 +352,15 @@ func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
 	}
 
 	return bp, true, nil
+}
+
+func colorize(content string) (string, error) {
+	sb := strings.Builder{}
+
+	err := quick.Highlight(&sb, content, "go", "terminal256", "gruvbox")
+	if err != nil {
+		return "", fmt.Errorf("error highlighting the source code: %w", err)
+	}
+
+	return sb.String(), nil
 }
