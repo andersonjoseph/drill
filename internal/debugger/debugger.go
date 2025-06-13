@@ -49,7 +49,7 @@ func newStackFrame(sf api.Stackframe, i int) StackFrame {
 	}
 }
 
-type fileContent struct {
+type FileContent struct {
 	Filename string
 	Content  []string
 }
@@ -72,7 +72,7 @@ type Debugger struct {
 	ready       chan string
 	Output      chan Output
 	lcfg        api.LoadConfig
-	fileContent fileContent
+	fileContent FileContent
 	isReady     bool
 }
 
@@ -154,27 +154,27 @@ func (d *Debugger) startProcess(filename string) error {
 	return nil
 }
 
-func (d *Debugger) ActiveFile() fileContent {
+func (d *Debugger) ActiveFile() FileContent {
 	return d.fileContent
 }
 
-func (d *Debugger) GoToCurrentFile() (fileContent, error) {
+func (d *Debugger) GoToCurrentFile() (FileContent, error) {
 	state, err := d.client.GetState()
 	if err != nil {
-		return fileContent{}, fmt.Errorf("error getting current file content: debugger state: %w", err)
+		return FileContent{}, fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
 	if _, err = d.GoToFile(state.CurrentThread.File); err != nil {
-		return fileContent{}, fmt.Errorf("error getting current file content: setting current file: %w", err)
+		return FileContent{}, fmt.Errorf("error getting current file content: setting current file: %w", err)
 	}
 
 	return d.fileContent, nil
 }
 
-func (d *Debugger) GoToFile(filename string) (fileContent, error) {
+func (d *Debugger) GoToFile(filename string) (FileContent, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return fileContent{}, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
+		return FileContent{}, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
 	}
 	defer f.Close()
 	lines := make([]string, 0)
@@ -184,7 +184,7 @@ func (d *Debugger) GoToFile(filename string) (fileContent, error) {
 		lines = append(lines, scanner.Text())
 	}
 
-	d.fileContent = fileContent{
+	d.fileContent = FileContent{
 		Filename: filename,
 		Content:  lines,
 	}
