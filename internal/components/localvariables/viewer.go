@@ -9,7 +9,6 @@ import (
 	"github.com/andersonjoseph/drill/internal/messages"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
 )
 
@@ -66,27 +65,7 @@ func (m VariableViewerModel) Update(msg tea.Msg) (VariableViewerModel, tea.Cmd) 
 	return m, cmd
 }
 func (m VariableViewerModel) View() string {
-	var style lipgloss.Style
-	if m.isFocused {
-		style = listFocusedStyle
-	} else {
-		style = listDefaultStyle
-	}
-
-	title := style.Render(fmt.Sprintf("[%d] %s %s", m.id, "Inspecting", m.variable.Name))
-	titleWidth := lipgloss.Width(title)
-
-	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(m.viewport.Width-titleWidth, 1))) + style.Render("┐")
-
-	return lipgloss.JoinVertical(lipgloss.Top,
-		topBorder,
-		style.
-			Width(m.viewport.Width).
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(style.GetForeground()).
-			BorderTop(false).
-			Render(m.viewport.View()),
-	)
+	return m.viewport.View()
 }
 
 func (m *VariableViewerModel) setContent(v debugger.Variable) error {

@@ -12,6 +12,7 @@ import (
 	"github.com/andersonjoseph/drill/internal/components/localvariables"
 	"github.com/andersonjoseph/drill/internal/components/output"
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
+	"github.com/andersonjoseph/drill/internal/components/window"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
@@ -43,15 +44,25 @@ func main() {
 		os.Exit(1)
 	}
 	defer debugger.Close()
+
+	localvariablesWindow := window.New(1, "Local Variables", localvariables.New(1, debugger))
+	breakpointsWindow := window.New(2, "Breakpoints", breakpoints.New(2, debugger))
+	callstackWindow := window.New(3, "Callstack", callstack.New(3, debugger))
+	errorWindow := window.New(5, "Error", output.New(5, "Error", debugger))
+
+	sourcecodeWindow := window.New(4, "Source Code", sourcecode.New(4, "Source Code", debugger))
+	outputWindow := window.New(5, "Output", output.New(5, "Output", debugger))
+
 	m := model{
 		debugger: debugger,
-		sidebar: sidebar{
-			localVariables: localvariables.New(1, debugger),
-			breakpoints:    breakpoints.New(2, debugger),
-			callstack:      callstack.New(3, debugger),
+		sidebar: []window.Model{
+			localvariablesWindow,
+			breakpointsWindow,
+			callstackWindow,
+			errorWindow,
 		},
-		sourceCode: sourcecode.New(4, "Source Code", debugger),
-		output:     output.New(5, "Output", debugger),
+		sourceCode: sourcecodeWindow,
+		output:     outputWindow,
 	}
 
 	if bp != "" {

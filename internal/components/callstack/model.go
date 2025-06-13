@@ -24,9 +24,6 @@ var (
 	frameStyleSelected lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
 	frameStyleDefault  lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
 
-	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
-	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
-
 	listItemStyle lipgloss.Style = lipgloss.NewStyle()
 )
 
@@ -70,7 +67,7 @@ func New(id int, debugger *debugger.Debugger) Model {
 }
 
 func (m Model) Init() tea.Cmd { return nil }
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
@@ -141,27 +138,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	var style lipgloss.Style
-	if m.IsFocused {
-		style = listFocusedStyle
-		m.list.Styles.PaginationStyle = paginatorStyleFocused
-	} else {
-		style = listDefaultStyle
-		m.list.Styles.PaginationStyle = paginatorStyleDefault
-	}
-
-	title := style.Render(fmt.Sprintf("[%d] %s", m.ID, m.title))
-	titleWidth := lipgloss.Width(title)
-	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(m.width-titleWidth, 1))) + style.Render("┐")
-
-	return lipgloss.JoinVertical(lipgloss.Top,
-		topBorder,
-		style.
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(style.GetForeground()).
-			BorderTop(false).
-			Render(m.list.View()),
-	)
+	return m.list.View()
 }
 
 func (m *Model) updateContent() error {

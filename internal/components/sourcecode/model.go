@@ -2,27 +2,10 @@ package sourcecode
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	windowFocusedStyle = lipgloss.NewStyle().
-				Foreground(components.ColorGreen).
-				Border(lipgloss.NormalBorder()).
-				BorderTop(false).
-				BorderForeground(components.ColorGreen)
-
-	windowDefaultStyle = lipgloss.NewStyle().
-				Foreground(components.ColorWhite).
-				Border(lipgloss.NormalBorder()).
-				BorderTop(false).
-				BorderForeground(components.ColorWhite)
 )
 
 type Model struct {
@@ -48,7 +31,7 @@ func New(id int, title string, d *debugger.Debugger) Model {
 
 func (m Model) Init() tea.Cmd { return nil }
 
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
@@ -205,19 +188,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	style := windowDefaultStyle
-	if m.IsFocused {
-		style = windowFocusedStyle
-	}
-
-	title := fmt.Sprintf("[%d] %s [%s]", m.ID, m.title, m.currentFilename)
-	topBorder := "┌" + title + strings.Repeat("─", max(m.width-len(title), 1)) + "┐"
-
-	return lipgloss.JoinVertical(
-		lipgloss.Top,
-		style.Border(lipgloss.Border{}).Render(topBorder),
-		style.Height(m.height).Width(m.width).Render(m.viewport.View()),
-	)
+	return m.viewport.View()
 }
 
 func (m *Model) updateContent() error {

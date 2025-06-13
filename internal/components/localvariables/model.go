@@ -3,7 +3,6 @@ package localvariables
 import (
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
@@ -80,7 +79,7 @@ func New(id int, debugger *debugger.Debugger) Model {
 }
 
 func (m Model) Init() tea.Cmd { return nil }
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
@@ -163,26 +162,7 @@ func (m Model) View() string {
 		return m.variableViewer.View()
 	}
 
-	var style lipgloss.Style
-	if m.IsFocused {
-		style = listFocusedStyle
-	} else {
-		style = listDefaultStyle
-	}
-
-	title := style.Render(fmt.Sprintf("[%d] %s", m.ID, m.title))
-	titleWidth := lipgloss.Width(title)
-
-	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(m.width-titleWidth, 1))) + style.Render("┐")
-	return lipgloss.JoinVertical(lipgloss.Top,
-		topBorder,
-		style.
-			Width(m.width).
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(style.GetForeground()).
-			BorderTop(false).
-			Render(m.list.View()),
-	)
+	return m.list.View()
 }
 
 func (m *Model) updateContent() error {

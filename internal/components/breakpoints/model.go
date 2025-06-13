@@ -28,9 +28,6 @@ var (
 	breakpointStyleFocused lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorPurple).Bold(true)
 	breakpointStyleDefault lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
 
-	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
-	listDefaultStyle lipgloss.Style = lipgloss.NewStyle()
-
 	indicatorEnabled  = lipgloss.NewStyle().Foreground(components.ColorRed).Render(breakpointSymbol, " ")
 	indicatorDisabled = lipgloss.NewStyle().Foreground(components.ColorGrey).Render(breakpointSymbol, " ")
 	conditionStyle    = lipgloss.NewStyle().Foreground(components.ColorYellow)
@@ -79,7 +76,7 @@ func New(id int, debugger *debugger.Debugger) Model {
 }
 
 func (m Model) Init() tea.Cmd { return nil }
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
@@ -204,26 +201,7 @@ func (m Model) View() string {
 	if m.conditionInput.isFocused {
 		return m.conditionInput.View()
 	}
-
-	var style lipgloss.Style
-	if m.IsFocused {
-		style = listFocusedStyle
-	} else {
-		style = listDefaultStyle
-	}
-
-	title := style.Render(fmt.Sprintf("[%d] %s", m.ID, m.title))
-	titleWidth := lipgloss.Width(title)
-	topBorder := style.Render("┌") + title + style.Render(strings.Repeat("─", max(m.width-titleWidth, 1))) + style.Render("┐")
-
-	return lipgloss.JoinVertical(lipgloss.Top,
-		topBorder,
-		style.
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(style.GetForeground()).
-			BorderTop(false).
-			Render(m.list.View()),
-	)
+	return m.list.View()
 }
 
 func (m *Model) updateContent() error {

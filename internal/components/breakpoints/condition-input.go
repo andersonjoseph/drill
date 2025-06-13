@@ -1,14 +1,14 @@
 package breakpoints
 
 import (
-	"strings"
-
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/messages"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+var conditionInputStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite).Border(lipgloss.NormalBorder()).BorderForeground(components.ColorYellow)
 
 type messageNewCondition string
 
@@ -80,19 +80,7 @@ func (m conditionInputModel) Update(msg tea.Msg) (conditionInputModel, tea.Cmd) 
 }
 
 func (m conditionInputModel) View() string {
-	title := listFocusedStyle.Render("Breakpoint Condition")
-	titleWidth := lipgloss.Width(title)
-
-	topBorder := listFocusedStyle.Render("┌") + title + listFocusedStyle.Render(strings.Repeat("─", max(m.width-titleWidth, 1))) + listFocusedStyle.Render("┐")
-	return lipgloss.JoinVertical(lipgloss.Top,
-		topBorder,
-		listFocusedStyle.
-			Border(lipgloss.NormalBorder()).
-			BorderTop(false).
-			BorderForeground(listFocusedStyle.GetForeground()).
-			Foreground(components.ColorWhite).
-			Render(m.textInput.View()),
-	)
+	return conditionInputStyle.Render(m.textInput.View())
 }
 
 func (m *conditionInputModel) setFocus(f bool) {

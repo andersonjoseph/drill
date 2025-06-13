@@ -3,8 +3,7 @@ package main
 import (
 	"strconv"
 
-	"github.com/andersonjoseph/drill/internal/components/output"
-	"github.com/andersonjoseph/drill/internal/components/sourcecode"
+	"github.com/andersonjoseph/drill/internal/components/window"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,9 +11,9 @@ import (
 )
 
 type model struct {
-	sidebar          sidebar
-	sourceCode       sourcecode.Model
-	output           output.Model
+	sidebar          []window.Model
+	sourceCode       window.Model
+	output           window.Model
 	debugger         *debugger.Debugger
 	logs             []string
 	textInputFocused bool
@@ -40,7 +39,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.Error:
-		m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(msg)
+		m.sidebar[len(m.sidebar)-1], cmd = m.sidebar[len(m.sidebar)-1].Update(msg)
 		return m, cmd
 
 	case messages.WindowFocused:
@@ -66,17 +65,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		m.sidebar.errorMessage.error = nil
+		m.sidebar[len(m.sidebar)-1].Update(messages.Error(nil))
 	}
 
-	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(msg)
-	cmds = append(cmds, cmd)
-
-	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(msg)
-	cmds = append(cmds, cmd)
-
-	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(msg)
-	cmds = append(cmds, cmd)
+	for i := range m.sidebar {
+		m.sidebar[i], cmd = m.sidebar[i].Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	m.sourceCode, cmd = m.sourceCode.Update(msg)
 	cmds = append(cmds, cmd)
@@ -94,10 +89,10 @@ func (m model) View() string {
 			lipgloss.Top,
 			lipgloss.JoinVertical(
 				lipgloss.Top,
-				m.sidebar.localVariables.View(),
-				m.sidebar.breakpoints.View(),
-				m.sidebar.callstack.View(),
-				m.sidebar.errorMessage.View(),
+				m.sidebar[0].View(),
+				m.sidebar[1].View(),
+				m.sidebar[2].View(),
+				//m.sidebar[3].View(),
 			),
 			lipgloss.JoinVertical(
 				lipgloss.Top,
@@ -142,18 +137,10 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
-	m.sidebar.localVariables, cmd = m.sidebar.localVariables.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarComponentHeight})
-	cmds = append(cmds, cmd)
-
-	m.sidebar.breakpoints, cmd = m.sidebar.breakpoints.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarComponentHeight})
-	cmds = append(cmds, cmd)
-
-	m.sidebar.callstack, cmd = m.sidebar.callstack.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarComponentHeight})
-	cmds = append(cmds, cmd)
-
-	lastComponentHeight := msg.Height - (sidebarComponentHeight * 3)
-	m.sidebar.errorMessage, cmd = m.sidebar.errorMessage.Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: lastComponentHeight})
-	cmds = append(cmds, cmd)
+	for i := range m.sidebar {
+		m.sidebar[i], cmd = m.sidebar[i].Update(tea.WindowSizeMsg{Width: sidebarWidth, Height: sidebarComponentHeight})
+		cmds = append(cmds, cmd)
+	}
 
 	m.sourceCode, cmd = m.sourceCode.Update(tea.WindowSizeMsg{Width: mainPanelWidth, Height: sourceCodeHeight})
 	cmds = append(cmds, cmd)

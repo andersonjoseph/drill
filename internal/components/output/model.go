@@ -1,9 +1,6 @@
 package output
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
@@ -13,8 +10,7 @@ import (
 )
 
 var (
-	listFocusedStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGreen)
-	listDefaultStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
+	outputContentStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
 
 	stdoutLabelStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
 	stderrLabelStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorOrange)
@@ -23,7 +19,6 @@ var (
 type Model struct {
 	ID        int
 	IsFocused bool
-	title     string
 	content   string
 	width     int
 	height    int
@@ -34,7 +29,6 @@ type Model struct {
 func New(id int, title string, d *debugger.Debugger) Model {
 	m := Model{
 		ID:       id,
-		title:    title,
 		debugger: d,
 		content:  "",
 		viewport: viewport.New(30, 5),
@@ -57,7 +51,7 @@ func (m Model) Init() tea.Cmd {
 	return waitForDebuggerOutput(m.debugger.Output)
 }
 
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
@@ -116,30 +110,5 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	var style lipgloss.Style
-	if m.IsFocused {
-		style = listFocusedStyle
-	} else {
-		style = listDefaultStyle
-	}
-
-	title := fmt.Sprintf("[%d] %s", m.ID, m.title)
-	topBorder := "┌" + title + strings.Repeat("─", max(m.width-len(title), 1)) + "┐"
-
-	scrollPercent := fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))
-	bottomBorder := "└" + strings.Repeat("─", max(m.width-len(scrollPercent), 1)) + scrollPercent + "┘"
-
-	return lipgloss.JoinVertical(
-		lipgloss.Top,
-		style.Render(topBorder),
-		style.
-			Border(lipgloss.NormalBorder()).
-			BorderTop(false).
-			BorderBottom(false).
-			BorderForeground(style.GetForeground()).
-			Height(m.height).
-			Width(m.width).
-			Render(listDefaultStyle.Render(m.viewport.View())),
-		style.Render(bottomBorder),
-	)
+	return outputContentStyle.Render(m.viewport.View())
 }
