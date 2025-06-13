@@ -48,7 +48,6 @@ func main() {
 	localvariablesWindow := window.New(1, "Local Variables", localvariables.New(1, debugger))
 	breakpointsWindow := window.New(2, "Breakpoints", breakpoints.New(2, debugger))
 	callstackWindow := window.New(3, "Callstack", callstack.New(3, debugger))
-	errorWindow := window.New(5, "Error", output.New(5, "Error", debugger))
 
 	sourcecodeWindow := window.New(4, "Source Code", sourcecode.New(4, "Source Code", debugger))
 	outputWindow := window.New(5, "Output", output.New(5, "Output", debugger))
@@ -59,7 +58,6 @@ func main() {
 			localvariablesWindow,
 			breakpointsWindow,
 			callstackWindow,
-			errorWindow,
 		},
 		sourceCode: sourcecodeWindow,
 		output:     outputWindow,

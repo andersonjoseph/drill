@@ -3,6 +3,7 @@ package main
 import (
 	"strconv"
 
+	"github.com/andersonjoseph/drill/internal/components/alert"
 	"github.com/andersonjoseph/drill/internal/components/window"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
@@ -11,9 +12,10 @@ import (
 )
 
 type model struct {
-	sidebar          []window.Model
 	sourceCode       window.Model
 	output           window.Model
+	alert            alert.Model
+	sidebar          []window.Model
 	debugger         *debugger.Debugger
 	logs             []string
 	textInputFocused bool
@@ -38,10 +40,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case messages.Error:
-		m.sidebar[len(m.sidebar)-1], cmd = m.sidebar[len(m.sidebar)-1].Update(msg)
-		return m, cmd
-
 	case messages.WindowFocused:
 		m.focusedWindow = int(msg)
 
@@ -65,7 +63,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		m.sidebar[len(m.sidebar)-1].Update(messages.Error(nil))
 	}
 
 	for i := range m.sidebar {
@@ -79,26 +76,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.output, cmd = m.output.Update(msg)
 	cmds = append(cmds, cmd)
 
+	m.alert, cmd = m.alert.Update(msg)
+	cmds = append(cmds, cmd)
+
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
-	return lipgloss.JoinVertical(
-		lipgloss.Top,
-		lipgloss.JoinHorizontal(
+	return lipgloss.JoinVertical(lipgloss.Top,
+		lipgloss.JoinVertical(
 			lipgloss.Top,
-			lipgloss.JoinVertical(
+			lipgloss.JoinHorizontal(
 				lipgloss.Top,
-				m.sidebar[0].View(),
-				m.sidebar[1].View(),
-				m.sidebar[2].View(),
-			),
-			lipgloss.JoinVertical(
-				lipgloss.Top,
-				m.sourceCode.View(),
-				m.output.View(),
+				lipgloss.JoinVertical(
+					lipgloss.Top,
+					m.sidebar[0].View(),
+					m.sidebar[1].View(),
+					m.sidebar[2].View(),
+				),
+				lipgloss.JoinVertical(
+					lipgloss.Top,
+					m.sourceCode.View(),
+					m.output.View(),
+				),
 			),
 		),
+		m.alert.View(),
 	)
 }
 
@@ -129,7 +132,7 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 
 	// Let's give the source code 70% of the available vertical space
 	// and the output the remaining 30%.
-	sourceCodeHeight := int(float64(mainPanelAvailableHeight) * 0.7)
+	sourceCodeHeight := int(float64(mainPanelAvailableHeight) * 0.8)
 	outputHeight := mainPanelAvailableHeight - sourceCodeHeight
 
 	// --- Update all components with their new sizes ---
@@ -145,6 +148,9 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 	cmds = append(cmds, cmd)
 
 	m.output, cmd = m.output.Update(tea.WindowSizeMsg{Width: mainPanelWidth, Height: outputHeight})
+	cmds = append(cmds, cmd)
+
+	m.alert, cmd = m.alert.Update(tea.WindowSizeMsg{Width: msg.Width - 2, Height: 1})
 	cmds = append(cmds, cmd)
 
 	return tea.Batch(cmds...)
