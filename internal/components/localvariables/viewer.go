@@ -52,9 +52,13 @@ func (m VariableViewerModel) Update(msg tea.Msg) (VariableViewerModel, tea.Cmd) 
 
 		if msg.String() == "esc" {
 			m.isOpen = false
-			return m, func() tea.Msg {
-				return messages.WindowFocused(1)
-			}
+			return m, tea.Batch(
+				func() tea.Msg {
+					return messages.WindowFocused(m.id)
+				}, func() tea.Msg {
+					return messages.WindowTitleChanged{WindowID: m.id, Title: "Local Variables"}
+				},
+			)
 		}
 
 		m.viewport, cmd = m.viewport.Update(msg)
@@ -64,6 +68,7 @@ func (m VariableViewerModel) Update(msg tea.Msg) (VariableViewerModel, tea.Cmd) 
 	m.viewport, cmd = m.viewport.Update(msg)
 	return m, cmd
 }
+
 func (m VariableViewerModel) View() string {
 	return m.viewport.View()
 }
@@ -92,7 +97,7 @@ func (m *VariableViewerModel) setFocus(v bool) {
 func colorize(content string) (string, error) {
 	sb := strings.Builder{}
 
-	err := quick.Highlight(&sb, content, "go", "terminal8", "gruvbox")
+	err := quick.Highlight(&sb, content, "go", "terminal8", "native")
 	if err != nil {
 		return "", fmt.Errorf("error highlighting the source code: %w", err)
 	}

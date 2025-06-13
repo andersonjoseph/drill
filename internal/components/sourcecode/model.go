@@ -2,6 +2,7 @@ package sourcecode
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2/quick"
@@ -10,6 +11,7 @@ import (
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/hashicorp/golang-lru/v2"
 )
 
 const (
@@ -23,27 +25,33 @@ var (
 
 	arrow             = lipgloss.NewStyle().Foreground(components.ColorGreen).Render(arrowSymbol)
 	arrowInBreakpoint = lipgloss.NewStyle().Foreground(components.ColorRed).Render(arrowSymbol)
-
-	lineNumberStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
 )
 
 type Model struct {
-	ID        int
-	title     string
-	IsFocused bool
-	cursor    int
-	width     int
-	height    int
-	viewport  viewportWithCursorModel
-	debugger  *debugger.Debugger
+	ID         int
+	title      string
+	IsFocused  bool
+	cursor     int
+	width      int
+	height     int
+	viewport   viewportWithCursorModel
+	debugger   *debugger.Debugger
+	cache      *lru.Cache[string, []string]
+	fileLoaded string
 }
 
 func New(id int, title string, d *debugger.Debugger) Model {
+	cache, err := lru.New[string, []string](5)
+	if err != nil {
+		panic(err)
+	}
+
 	return Model{
 		ID:       id,
 		title:    title,
 		debugger: d,
-		viewport: newViewportWithCursor(),
+		viewport: newViewportWithCursor(d),
+		cache:    cache,
 	}
 }
 
@@ -66,13 +74,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case messages.RefreshContent:
-		if _, err := m.debugger.GoToCurrentFile(); err != nil {
+		filename, err := m.debugger.CurrentFilename()
+		if err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(fmt.Errorf("error refreshing content: could not get current file: %w", err))
 			}
 		}
 
-		if err := m.updateContent(); err != nil {
+		if err := m.updateContent(filename); err != nil {
 			return m, func() tea.Msg { return messages.Error(err) }
 		}
 
@@ -81,16 +90,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case messages.DebuggerRestarted, messages.DebuggerStepped:
-		if _, err := m.debugger.GoToCurrentFile(); err != nil {
+		filename, err := m.debugger.CurrentFilename()
+		if err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(fmt.Errorf("error refreshing content: could not get current file: %w", err))
 			}
 		}
 
-		if err := m.updateContent(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error handling debugger step: %w", err))
-			}
+		if err := m.updateContent(filename); err != nil {
+			return m, func() tea.Msg { return messages.Error(err) }
 		}
 
 		line, err := m.debugger.CurrentLine()
@@ -104,16 +112,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case messages.DebuggerBreakpointCreated, messages.DebuggerBreakpointToggled, messages.DebuggerBreakpointCleared:
-		if err := m.updateContent(); err != nil {
+		filename, err := m.debugger.CurrentFilename()
+		if err != nil {
 			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error handling debugger step: %w", err))
+				return messages.Error(fmt.Errorf("error refreshing content: could not get current file: %w", err))
 			}
+		}
+
+		if err := m.updateContent(filename); err != nil {
+			return m, func() tea.Msg { return messages.Error(err) }
 		}
 
 		return m, nil
 
 	case messages.OpenedFile:
-		if err := m.updateContent(); err != nil {
+		if err := m.updateContent(msg.Filename); err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(fmt.Errorf("error handling opened file: %w", err))
 			}
@@ -215,64 +228,31 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() string {
-	return m.viewport.View()
-}
+func (m Model) View() string { return m.viewport.View() }
 
-func (m *Model) updateContent() error {
-	formattedLines, err := m.formatContent(m.debugger.ActiveFile())
-	if err != nil {
-		return fmt.Errorf("error updating content: could not format content: %w", err)
-	}
+func (m *Model) updateContent(filename string) error {
+	var colorizedLines []string
 
-	m.viewport.setContent(formattedLines)
-	return nil
-}
-
-func (m Model) formatContent(currentFile debugger.FileContent) ([]string, error) {
-	arrowLineNumber, err := m.debugger.CurrentLine()
-	if err != nil {
-		return nil, fmt.Errorf("error updating content: could not get current line: %w", err)
-	}
-
-	breakpointsInFile, err := m.debugger.FileBreakpoints(currentFile.Filename)
-	if err != nil {
-		return nil, fmt.Errorf("error updating content: could not get breakpoints: %w", err)
-	}
-
-	formattedLines := make([]string, len(currentFile.Content))
-	for i, rawLine := range currentFile.Content {
-		lineNumber := i + 1
-		var prefix string
-
-		bp, isBpInLine := breakpointsInFile[lineNumber]
-
-		if lineNumber == arrowLineNumber {
-			if isBpInLine && !bp.Disabled {
-				prefix = arrowInBreakpoint
-			} else {
-				prefix = arrow
-			}
-		} else if isBpInLine {
-			if bp.Disabled {
-				prefix = disabledBreakpointDot
-			} else {
-				prefix = enabledBreakpointDot
-			}
-		} else {
-			prefix = "   "
-		}
-
-		colorizedLine, err := colorize(rawLine)
+	if formattedLines, ok := m.cache.Get(filename); ok {
+		colorizedLines = formattedLines
+	} else {
+		content, err := m.readFile(filename)
 		if err != nil {
-			colorizedLine = rawLine
+			return fmt.Errorf("error updating content: could not read file: %w", err)
 		}
 
-		cleanColorizedLine := strings.ReplaceAll(colorizedLine, "\n", "")
-		formattedLines[i] = prefix + cleanColorizedLine
+		colorizedContent, err := colorize(content)
+		if err != nil {
+			return fmt.Errorf("error updating content: could not colorize content: %w", err)
+		}
+		colorizedLines = strings.Split(strings.TrimSpace(colorizedContent), "\n")
 	}
 
-	return formattedLines, nil
+	m.fileLoaded = filename
+	m.cache.Add(filename, colorizedLines)
+	m.viewport.setContent(filename, colorizedLines)
+
+	return nil
 }
 
 func (m *Model) next() error {
@@ -300,7 +280,7 @@ func (m Model) createOrToggleBreakpoint() tea.Cmd {
 
 	if !ok {
 		currentLine := m.viewport.CurrentLineNumber()
-		if _, err := m.debugger.CreateBreakpoint(m.debugger.ActiveFile().Filename, currentLine); err != nil {
+		if _, err := m.debugger.CreateBreakpoint(m.fileLoaded, currentLine); err != nil {
 			return func() tea.Msg {
 				return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
 			}
@@ -353,7 +333,7 @@ func (m Model) selectBreakpoint() (int, error) {
 func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
 	currentLine := m.viewport.CurrentLineNumber()
 
-	bps, err := m.debugger.FileBreakpoints(m.debugger.ActiveFile().Filename)
+	bps, err := m.debugger.FileBreakpoints(m.fileLoaded)
 	if err != nil {
 		return debugger.Breakpoint{}, false, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
 	}
@@ -366,10 +346,19 @@ func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
 	return bp, true, nil
 }
 
+func (m Model) readFile(filename string) (string, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
+	}
+
+	return string(content), nil
+}
+
 func colorize(content string) (string, error) {
 	sb := strings.Builder{}
 
-	err := quick.Highlight(&sb, content, "go", "terminal256", "gruvbox")
+	err := quick.Highlight(&sb, content, "go", "terminal8", "native")
 	if err != nil {
 		return "", fmt.Errorf("error highlighting the source code: %w", err)
 	}

@@ -5,7 +5,6 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -49,11 +48,6 @@ func newStackFrame(sf api.Stackframe, i int) StackFrame {
 	}
 }
 
-type FileContent struct {
-	Filename string
-	Content  []string
-}
-
 type outputSource int
 
 const (
@@ -68,12 +62,11 @@ type Output struct {
 }
 
 type Debugger struct {
-	client      *rpc2.RPCClient
-	ready       chan string
-	Output      chan Output
-	lcfg        api.LoadConfig
-	fileContent FileContent
-	isReady     bool
+	client  *rpc2.RPCClient
+	ready   chan string
+	Output  chan Output
+	lcfg    api.LoadConfig
+	isReady bool
 }
 
 func New(filename string) (*Debugger, error) {
@@ -154,42 +147,13 @@ func (d *Debugger) startProcess(filename string) error {
 	return nil
 }
 
-func (d *Debugger) ActiveFile() FileContent {
-	return d.fileContent
-}
-
-func (d *Debugger) GoToCurrentFile() (FileContent, error) {
+func (d *Debugger) CurrentFilename() (string, error) {
 	state, err := d.client.GetState()
 	if err != nil {
-		return FileContent{}, fmt.Errorf("error getting current file content: debugger state: %w", err)
+		return "", fmt.Errorf("error getting current file content: debugger state: %w", err)
 	}
 
-	if _, err = d.GoToFile(state.CurrentThread.File); err != nil {
-		return FileContent{}, fmt.Errorf("error getting current file content: setting current file: %w", err)
-	}
-
-	return d.fileContent, nil
-}
-
-func (d *Debugger) GoToFile(filename string) (FileContent, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return FileContent{}, fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
-	}
-	defer f.Close()
-	lines := make([]string, 0)
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	d.fileContent = FileContent{
-		Filename: filename,
-		Content:  lines,
-	}
-
-	return d.fileContent, nil
+	return state.CurrentThread.File, nil
 }
 
 func (d Debugger) FileBreakpoints(filename string) (map[int]Breakpoint, error) {

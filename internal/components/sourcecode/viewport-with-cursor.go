@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
+	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,7 +16,7 @@ var (
 	cursorFocusedStyle = lipgloss.NewStyle().Background((components.ColorPurple)).Foreground(components.ColorWhite).Bold(true)
 	cursorDefaultStyle = lipgloss.NewStyle().Background(components.ColorBlack)
 
-	lineNumberFocusedStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
+	lineNumberStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
 )
 
 type viewportWithCursorModel struct {
@@ -25,11 +26,14 @@ type viewportWithCursorModel struct {
 	cursor    int
 	viewport  viewport.Model
 	content   []string
+	filename  string
+	debugger  *debugger.Debugger
 }
 
-func newViewportWithCursor() viewportWithCursorModel {
+func newViewportWithCursor(debugger *debugger.Debugger) viewportWithCursorModel {
 	return viewportWithCursorModel{
 		viewport: viewport.New(0, 0),
+		debugger: debugger,
 	}
 }
 
@@ -49,8 +53,6 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 
 		m.viewport.Height = m.height
 		m.viewport.Width = m.width
-
-		m.updateContent()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -68,7 +70,6 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 			m.cursor = len(m.content) - 1
 			m.viewport.GotoBottom()
 			m.updateContent()
-
 		default:
 			var cmd tea.Cmd
 			m.viewport, cmd = m.viewport.Update(msg)
@@ -140,10 +141,20 @@ func (m *viewportWithCursorModel) centerCursorView() {
 	m.viewport.SetYOffset(newYOffset)
 }
 
-func (m *viewportWithCursorModel) updateContent() {
+func (m *viewportWithCursorModel) updateContent() error {
 	if len(m.content) == 0 {
 		m.viewport.SetContent("")
-		return
+		return nil
+	}
+
+	arrowLineNumber, err := m.debugger.CurrentLine()
+	if err != nil {
+		return fmt.Errorf("error updating content: could not get current line: %w", err)
+	}
+
+	breakpointsInFile, err := m.debugger.FileBreakpoints(m.filename)
+	if err != nil {
+		return fmt.Errorf("error updating content: could not get breakpoints: %w", err)
 	}
 
 	var cursorStyle lipgloss.Style
@@ -153,19 +164,36 @@ func (m *viewportWithCursorModel) updateContent() {
 		cursorStyle = cursorDefaultStyle
 	}
 
-	var lines []string
+	lines := make([]string, len(m.content))
 	for i, line := range m.content {
-		lineNumber := lineNumberFocusedStyle.Render(fmt.Sprintf("%4d │ ", i+1))
+		lineNumber := i + 1
+		rederedLineNumber := lineNumberStyle.Render(fmt.Sprintf("%4d │ ", lineNumber))
 		if m.cursor == i {
-			lineNumber = cursorStyle.Render(lineNumber)
+			rederedLineNumber = cursorStyle.Render(rederedLineNumber)
 		}
 
-		// Reset ANSI codes at the end of each line to prevent bleeding
-		cleanLine := line + "\033[0m"
-		lines = append(lines, lineNumber+cleanLine)
+		bp, isBpInLine := breakpointsInFile[lineNumber]
+		var prefix string
+		if lineNumber == arrowLineNumber {
+			if isBpInLine && !bp.Disabled {
+				prefix = arrowInBreakpoint
+			} else {
+				prefix = arrow
+			}
+		} else if isBpInLine {
+			if bp.Disabled {
+				prefix = disabledBreakpointDot
+			} else {
+				prefix = enabledBreakpointDot
+			}
+		} else {
+			prefix = "   "
+		}
+		lines[i] = rederedLineNumber + prefix + line
 	}
 
 	m.viewport.SetContent(strings.Join(lines, "\n"))
+	return nil
 }
 
 func (m *viewportWithCursorModel) ensureCursorVisible() {
@@ -186,15 +214,15 @@ func (m viewportWithCursorModel) Line(index int) string {
 	return ""
 }
 
-func (m *viewportWithCursorModel) setContent(content []string) {
+func (m *viewportWithCursorModel) setContent(filename string, content []string) {
 	m.content = content
+	m.filename = filename
+
 	if m.cursor >= len(content) && len(content) > 0 {
 		m.cursor = len(content) - 1
 	}
 	if len(content) == 0 {
 		m.cursor = 0
 	}
-	m.viewport.Width = m.width
-	m.viewport.Height = m.height
 	m.updateContent()
 }
