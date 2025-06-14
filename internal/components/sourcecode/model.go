@@ -2,156 +2,71 @@ package sourcecode
 
 import (
 	"fmt"
-	"os"
-	"strings"
 
-	"github.com/alecthomas/chroma/v2/quick"
-	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/hashicorp/golang-lru/v2"
-)
-
-const (
-	arrowSymbol         = " 🢂 "
-	breakpointDotSymbol = " ⏺ "
-)
-
-var (
-	enabledBreakpointDot  = lipgloss.NewStyle().Foreground(components.ColorRed).Render(breakpointDotSymbol)
-	disabledBreakpointDot = lipgloss.NewStyle().Foreground(components.ColorGrey).Render(breakpointDotSymbol)
-
-	arrow             = lipgloss.NewStyle().Foreground(components.ColorGreen).Render(arrowSymbol)
-	arrowInBreakpoint = lipgloss.NewStyle().Foreground(components.ColorRed).Render(arrowSymbol)
 )
 
 type Model struct {
-	ID         int
-	title      string
-	IsFocused  bool
-	cursor     int
-	width      int
-	height     int
-	viewport   viewportWithCursorModel
-	debugger   *debugger.Debugger
-	cache      *lru.Cache[string, []string]
-	fileLoaded string
+	ID        int
+	title     string
+	IsFocused bool
+	width     int
+	height    int
+	viewport  viewportWithCursorModel
+	debugger  *debugger.Debugger
 }
 
 func New(id int, title string, d *debugger.Debugger) Model {
-	cache, err := lru.New[string, []string](5)
-	if err != nil {
-		panic(err)
-	}
-
 	return Model{
 		ID:       id,
 		title:    title,
 		debugger: d,
 		viewport: newViewportWithCursor(d),
-		cache:    cache,
 	}
 }
 
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
+	case messages.FileRequested:
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, tea.Batch(
+			cmd,
+			func() tea.Msg {
+				return messages.WindowFocused(m.ID)
+			},
+		)
+
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
-
-		m.viewport.setFocus(m.IsFocused)
-		return m, nil
+		return m, cmd
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 
-		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 		return m, cmd
-
-	case messages.RefreshContent:
-		filename, err := m.debugger.CurrentFilename()
-		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error refreshing content: could not get current file: %w", err))
-			}
-		}
-
-		if err := m.updateContent(filename); err != nil {
-			return m, func() tea.Msg { return messages.Error(err) }
-		}
-
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(messages.RefreshContent{})
-		return m, cmd
-
-	case messages.DebuggerRestarted, messages.DebuggerStepped:
-		filename, err := m.debugger.CurrentFilename()
-		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error refreshing content: could not get current file: %w", err))
-			}
-		}
-
-		if err := m.updateContent(filename); err != nil {
-			return m, func() tea.Msg { return messages.Error(err) }
-		}
-
-		line, err := m.debugger.CurrentLine()
-		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error handling debugger step: %w", err))
-			}
-		}
-		m.viewport.jumpToLine(line)
-
-		return m, nil
-
-	case messages.DebuggerBreakpointCreated, messages.DebuggerBreakpointToggled, messages.DebuggerBreakpointCleared:
-		filename, err := m.debugger.CurrentFilename()
-		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error refreshing content: could not get current file: %w", err))
-			}
-		}
-
-		if err := m.updateContent(filename); err != nil {
-			return m, func() tea.Msg { return messages.Error(err) }
-		}
-
-		return m, nil
-
-	case messages.OpenedFile:
-		if err := m.updateContent(msg.Filename); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error handling opened file: %w", err))
-			}
-		}
-
-		m.viewport.jumpToLine(msg.Line)
-		return m, func() tea.Msg {
-			return messages.WindowFocused(m.ID)
-		}
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 	}
 
-	return m, nil
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if !m.IsFocused {
 		return m, nil
 	}
-
 	if msg.String() == "n" {
 		if err := m.next(); err != nil {
-			return m, func() tea.Msg { return messages.Error(err) }
+			return m, messages.ErrorCmd(err)
 		}
 		return m, func() tea.Msg { return messages.DebuggerStepped{} }
 	}
@@ -163,9 +78,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if msg.String() == "r" {
 		if err := m.debugger.Restart(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(fmt.Errorf("error restarting: %w", err))
-			}
+			return m, messages.ErrorCmd(fmt.Errorf("error restarting: %w", err))
 		}
 		return m, func() tea.Msg { return messages.DebuggerRestarted{} }
 	}
@@ -180,9 +93,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if msg.String() == "s" {
 		if err := m.debugger.StepIn(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
+			return m, messages.ErrorCmd(err)
 		}
 
 		return m, func() tea.Msg {
@@ -192,9 +103,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if msg.String() == "S" {
 		if err := m.debugger.StepOut(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
+			return m, messages.ErrorCmd(err)
 		}
 
 		return m, func() tea.Msg {
@@ -202,17 +111,10 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if msg.String() == "z" {
-		m.viewport.centerCursorView()
-		return m, nil
-	}
-
 	if msg.String() == "enter" {
 		id, err := m.selectBreakpoint()
 		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
+			return m, messages.ErrorCmd(err)
 		}
 		if id == 0 {
 			return m, nil
@@ -230,92 +132,51 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string { return m.viewport.View() }
 
-func (m *Model) updateContent(filename string) error {
-	var colorizedLines []string
-
-	if formattedLines, ok := m.cache.Get(filename); ok {
-		colorizedLines = formattedLines
-	} else {
-		content, err := m.readFile(filename)
-		if err != nil {
-			return fmt.Errorf("error updating content: could not read file: %w", err)
-		}
-
-		colorizedContent, err := colorize(content)
-		if err != nil {
-			return fmt.Errorf("error updating content: could not colorize content: %w", err)
-		}
-		colorizedLines = strings.Split(strings.TrimSpace(colorizedContent), "\n")
-	}
-
-	m.fileLoaded = filename
-	m.cache.Add(filename, colorizedLines)
-	m.viewport.setContent(filename, colorizedLines)
-
-	return nil
-}
-
 func (m *Model) next() error {
 	err := m.debugger.Next()
 	if err != nil {
-		return messages.Error(fmt.Errorf("error stepping over: %w", err))
+		return fmt.Errorf("error stepping over: %w", err)
 	}
 
-	line, err := m.debugger.CurrentLine()
-	if err != nil {
-		return messages.Error(fmt.Errorf("error stepping over: %w", err))
-	}
-
-	m.viewport.jumpToLine(line)
 	return nil
 }
 
 func (m Model) createOrToggleBreakpoint() tea.Cmd {
 	bp, ok, err := m.currentBreakpoint()
 	if err != nil {
-		return func() tea.Msg {
-			return messages.Error(fmt.Errorf("error toggling breakpoint: currentBreakpoint %w", err))
-		}
+		return messages.ErrorCmd(fmt.Errorf("error toggling breakpoint: currentBreakpoint %w", err))
 	}
 
 	if !ok {
 		currentLine := m.viewport.CurrentLineNumber()
-		if _, err := m.debugger.CreateBreakpoint(m.fileLoaded, currentLine); err != nil {
+		bp, err := m.debugger.CreateBreakpoint(m.viewport.filename, currentLine)
+		if err != nil {
 			return func() tea.Msg {
 				return messages.Error(fmt.Errorf("error creating breakpoint: %w", err))
 			}
 		}
 
-		return func() tea.Msg {
-			return messages.DebuggerBreakpointCreated{}
-		}
+		return messages.DebuggerBreakpointCreatedCmd(bp.ID, bp.Filename, currentLine)
 	}
 
 	m.debugger.ToggleBreakpoint(bp.ID)
-	return func() tea.Msg {
-		return messages.DebuggerBreakpointToggled{}
-	}
+	return messages.DebuggerBreakpointToggledCmd(bp.ID, bp.Filename, bp.Line)
 }
 
 func (m Model) clearBreakpoint() tea.Cmd {
 	bp, ok, err := m.currentBreakpoint()
 	if err != nil {
-		return func() tea.Msg {
-			return messages.Error(fmt.Errorf("error clearing breakpoint: currentBreakpoint %w", err))
-		}
+		return messages.ErrorCmd(fmt.Errorf("error clearing breakpoint: currentBreakpoint %w", err))
 	}
 	if !ok {
 		return nil
 	}
 
 	if err := m.debugger.ClearBreakpoint(bp.ID); err != nil {
-		return func() tea.Msg {
-			return messages.Error(fmt.Errorf("error clearing breakpoint %w", err))
-		}
+		return messages.ErrorCmd(fmt.Errorf("error clearing breakpoint %w", err))
 	}
-	return func() tea.Msg {
-		return messages.DebuggerBreakpointCleared{}
-	}
+
+	return messages.DebuggerBreakpointClearedCmd(bp.ID, bp.Filename, bp.Line)
 }
 
 func (m Model) selectBreakpoint() (int, error) {
@@ -333,9 +194,9 @@ func (m Model) selectBreakpoint() (int, error) {
 func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
 	currentLine := m.viewport.CurrentLineNumber()
 
-	bps, err := m.debugger.FileBreakpoints(m.fileLoaded)
+	bps, err := m.debugger.FileBreakpoints(m.viewport.filename)
 	if err != nil {
-		return debugger.Breakpoint{}, false, messages.Error(fmt.Errorf("error toggling breakpoint: currentFilename %w", err))
+		return debugger.Breakpoint{}, false, fmt.Errorf("error toggling breakpoint: currentFilename %w", err)
 	}
 
 	bp, ok := bps[currentLine]
@@ -344,24 +205,4 @@ func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {
 	}
 
 	return bp, true, nil
-}
-
-func (m Model) readFile(filename string) (string, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return "", fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
-	}
-
-	return string(content), nil
-}
-
-func colorize(content string) (string, error) {
-	sb := strings.Builder{}
-
-	err := quick.Highlight(&sb, content, "go", "terminal8", "native")
-	if err != nil {
-		return "", fmt.Errorf("error highlighting the source code: %w", err)
-	}
-
-	return sb.String(), nil
 }

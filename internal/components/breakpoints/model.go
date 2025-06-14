@@ -160,21 +160,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if msg.String() == "t" {
-			m.toggleBreakpoint()
-			return m, func() tea.Msg {
-				return messages.DebuggerBreakpointToggled{}
-			}
-		}
-
-		if msg.String() == "d" {
-			if err := m.clearBreakpoint(); err != nil {
+			bp, err := m.toggleBreakpoint()
+			if err != nil {
 				return m, func() tea.Msg {
 					return messages.Error(err)
 				}
 			}
-			return m, func() tea.Msg {
-				return messages.DebuggerBreakpointCleared{}
+
+			return m, messages.DebuggerBreakpointToggledCmd(bp.ID, bp.Filename, bp.Line)
+		}
+
+		if msg.String() == "d" {
+			bp, err := m.clearBreakpoint()
+			if err != nil {
+				return m, func() tea.Msg {
+					return messages.Error(err)
+				}
 			}
+
+			return m, messages.DebuggerBreakpointClearedCmd(bp.ID, bp.Filename, bp.Line)
 		}
 
 		if msg.String() == "c" {
@@ -214,24 +218,25 @@ func (m *Model) updateContent() error {
 	return nil
 }
 
-func (m *Model) toggleBreakpoint() {
+func (m *Model) toggleBreakpoint() (debugger.Breakpoint, error) {
 	i := m.list.SelectedItem()
 	if i == nil {
-		return
+		return debugger.Breakpoint{}, nil
 	}
-	id := i.(listItem).breakpoint.ID
-	m.debugger.ToggleBreakpoint(id)
+	bp := i.(listItem).breakpoint
+	m.debugger.ToggleBreakpoint(bp.ID)
+	return bp, nil
 }
 
-func (m *Model) clearBreakpoint() error {
+func (m *Model) clearBreakpoint() (debugger.Breakpoint, error) {
 	i := m.list.SelectedItem()
 	if i == nil {
-		return nil
+		return debugger.Breakpoint{}, nil
 	}
-	id := i.(listItem).breakpoint.ID
-	m.debugger.ClearBreakpoint(id)
+	bp := i.(listItem).breakpoint
+	m.debugger.ClearBreakpoint(bp.ID)
 
-	return nil
+	return bp, nil
 }
 
 func truncPath(path string, maxWidth int) string {

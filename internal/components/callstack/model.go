@@ -88,7 +88,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
-	case messages.OpenedFile:
+	case messages.FileRequested:
 		m.openedFilename = msg.Filename
 		m.list.SetDelegate(listDelegate{
 			parentFocused:  m.IsFocused,
@@ -117,7 +117,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			item := m.list.SelectedItem().(listItem)
 			return m, func() tea.Msg {
-				return messages.OpenedFile{
+				return messages.FileRequested{
 					Filename: item.frame.Filename,
 					Line:     item.frame.Line,
 				}

@@ -147,15 +147,6 @@ func (d *Debugger) startProcess(filename string) error {
 	return nil
 }
 
-func (d *Debugger) CurrentFilename() (string, error) {
-	state, err := d.client.GetState()
-	if err != nil {
-		return "", fmt.Errorf("error getting current file content: debugger state: %w", err)
-	}
-
-	return state.CurrentThread.File, nil
-}
-
 func (d Debugger) FileBreakpoints(filename string) (map[int]Breakpoint, error) {
 	bpsInThisFile := make(map[int]Breakpoint, 0)
 	bps, err := d.Breakpoints()
@@ -171,6 +162,15 @@ func (d Debugger) FileBreakpoints(filename string) (map[int]Breakpoint, error) {
 	}
 
 	return bpsInThisFile, nil
+}
+
+func (d Debugger) Breakpoint(id int) (Breakpoint, error) {
+	bp, err := d.client.GetBreakpoint(id)
+	if err != nil {
+		return Breakpoint{}, fmt.Errorf("error getting breakpoint: %w", err)
+	}
+
+	return apiBpToInternalBp(bp), nil
 }
 
 func (d Debugger) LocalVariables() ([]Variable, error) {
@@ -328,13 +328,13 @@ func (d Debugger) Close() error {
 	return fmt.Errorf("error closing debugger: %w", d.client.Disconnect(false))
 }
 
-func (d Debugger) CurrentLine() (int, error) {
+func (d Debugger) CurrentFile() (string, int, error) {
 	state, err := d.client.GetState()
 	if err != nil {
-		return 0, fmt.Errorf("error getting current state: %w", err)
+		return "", 0, fmt.Errorf("error getting current state: %w", err)
 	}
 
-	return state.CurrentThread.Line, nil
+	return state.CurrentThread.File, state.CurrentThread.Line, nil
 }
 
 func (d Debugger) StepIn() error {
