@@ -332,7 +332,7 @@ func (d listDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	fmt.Fprint(w, listItem.Render(m.Width()))
 }
 
-func (d listDelegate) Height() int                               { return 2 }
+func (d listDelegate) Height() int                               { return 1 }
 func (d listDelegate) Spacing() int                              { return 0 }
 func (d listDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
 
@@ -351,9 +351,9 @@ func (i listItem) Render(width int) string {
 		indicator = indicatorEnabled
 	}
 
-	item := paths.Trunc(i.breakpoint.Name, width-5)
+	var item string
 	if i.breakpoint.Condition != "" {
-		item += conditionStyle.Render("\n\twhen: " + i.breakpoint.Condition)
+		item = conditionStyle.Render("when", i.breakpoint.Condition, "")
 	}
 
 	var style lipgloss.Style
@@ -363,8 +363,10 @@ func (i listItem) Render(width int) string {
 		style = breakpointStyleDefault
 	}
 
+	item += style.Render(paths.Trunc(i.breakpoint.Name, width-len(item)-5))
+
 	breakpoint :=
-		lipgloss.JoinHorizontal(lipgloss.Top, indicator, style.Render(item))
+		lipgloss.JoinHorizontal(lipgloss.Top, indicator, item)
 
 	return listItemStyle.
 		Width(width).
