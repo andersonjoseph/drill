@@ -1,6 +1,7 @@
 package output
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -17,6 +18,7 @@ var (
 	promptStyle lipgloss.Style = lipgloss.NewStyle().
 			Foreground(components.ColorWhite)
 	commandStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
+	errorStyle   lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorRed)
 )
 
 type CommandInputModel struct {
@@ -28,7 +30,7 @@ type CommandInputModel struct {
 
 func newCommandInputModel(id int, d *debugger.Debugger) CommandInputModel {
 	ti := textinput.New()
-	ti.Placeholder = "dlv command..."
+	ti.Placeholder = "command..."
 	ti.CharLimit = 256
 	ti.Width = 80
 	ti.Prompt = "> "
@@ -77,27 +79,26 @@ func (m CommandInputModel) Update(msg tea.Msg) (CommandInputModel, tea.Cmd) {
 
 		switch msg.Type {
 		case tea.KeyEnter:
-			commandStr := m.textInput.Value()
-			if commandStr == "" {
+			input := strings.TrimSpace(m.textInput.Value())
+			if input == "" {
 				return m, nil
 			}
 
-			v, err := m.debugger.EvalVariable(commandStr)
-			if err != nil {
-				return m, messages.ErrorCmd(err)
-			}
-
-			colorizedValue, err := Colorize(v.MultilineValue)
-			if err != nil {
-				return m, messages.ErrorCmd(err)
-			}
-
-			m.debugger.Output <- debugger.Output{
-				Source:  debugger.SourceCommand,
-				Content: fmt.Sprintf("%s \n %s", commandStyle.Render(commandStr), colorizedValue),
-			}
+			parts := strings.Fields(input)
+			command, args := parts[0], parts[1:]
 
 			m.textInput.Reset()
+
+			switch command {
+			case "print", "p":
+				if err := m.commandPrint(input, args); err != nil {
+					m.sendOutput(errorStyle.Render(err.Error()))
+					return m, nil
+				}
+
+			default:
+				m.sendOutput(errorStyle.Render(fmt.Sprintf("Error: unrecognized command '%s'", command)))
+			}
 			return m, nil
 
 		case tea.KeyEsc:
@@ -115,15 +116,46 @@ func (m CommandInputModel) Update(msg tea.Msg) (CommandInputModel, tea.Cmd) {
 				},
 			)
 		}
-
 	}
 
 	m.textInput, cmd = m.textInput.Update(msg)
 	return m, cmd
 }
 
+func (m CommandInputModel) commandPrint(input string, args []string) error {
+	if len(args) == 0 {
+		return errors.New("print command requires an argument")
+	}
+
+	expr := strings.Join(args, "")
+	v, err := m.debugger.EvalVariable(expr)
+	if err != nil {
+		return err
+	}
+
+	colorizedValue, err := Colorize(v.MultilineValue)
+	if err != nil {
+		colorizedValue = v.MultilineValue
+	}
+
+	m.sendOutput(fmt.Sprintf(
+		"%s \n%s",
+		commandStyle.Render(input),
+		colorizedValue,
+	))
+
+	return nil
+}
+
 func (m CommandInputModel) View() string {
 	return m.textInput.View()
+}
+
+func (m CommandInputModel) sendOutput(content string) {
+	m.debugger.Output <- debugger.Output{
+		Source:  debugger.SourceCommand,
+		Content: content,
+	}
 }
 
 func Colorize(content string) (string, error) {

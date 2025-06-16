@@ -50,7 +50,6 @@ func waitForDebuggerOutput(c chan debugger.Output) tea.Cmd {
 			return messages.DebuggerCommandReceived(o.Content)
 		case debugger.SourceStdout:
 			return messages.DebuggerStdoutReceived(o.Content)
-
 		default:
 			return nil
 		}
