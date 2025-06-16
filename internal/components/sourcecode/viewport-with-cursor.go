@@ -65,7 +65,31 @@ func (m viewportWithCursorModel) Init() tea.Cmd {
 
 func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case messages.RefreshContent, messages.DebuggerRestarted, messages.DebuggerStepped:
+
+	case messages.DebuggerStepped:
+		filename, line, err := m.debugger.CurrentFile()
+		if err != nil {
+			return m, messages.ErrorCmd(fmt.Errorf("error refreshing content: could not get current file: %w", err))
+		}
+
+		if m.filename != filename {
+			if err := m.openFile(filename, line); err != nil {
+				return m, messages.ErrorCmd(fmt.Errorf("error refreshing content: could not get current file: %w", err))
+			}
+			m.centerCursor()
+		}
+
+		oldArrowLineNumber := m.arrowLineNumber
+		m.arrowLineNumber = line
+
+		m.renderLine(oldArrowLineNumber)
+		m.renderLine(m.arrowLineNumber)
+
+		m.setCursor(m.arrowLineNumber)
+		m.centerCursor()
+		return m, nil
+
+	case messages.RefreshContent, messages.DebuggerRestarted:
 		filename, line, err := m.debugger.CurrentFile()
 		if err != nil {
 			return m, messages.ErrorCmd(fmt.Errorf("error refreshing content: could not get current file: %w", err))
