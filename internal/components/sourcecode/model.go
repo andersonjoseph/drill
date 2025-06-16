@@ -8,6 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const (
+	hintString = "c: continue, n: next, r: restart, b: create/toggle breakpoint, d: delete breakpoint, s: step in, S: step out, enter: select breakpoint, j: down, k: up"
+)
+
 type Model struct {
 	ID        int
 	title     string
@@ -43,7 +47,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
-		return m, cmd
+		if !m.IsFocused {
+			return m, nil
+		}
+
+		return m, func() tea.Msg {
+			return messages.UpdatedHint(hintString)
+		}
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width

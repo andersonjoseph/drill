@@ -14,6 +14,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	commandHintString = "enter: execute, esc: cancel"
+)
+
 var (
 	promptStyle lipgloss.Style = lipgloss.NewStyle().
 			Foreground(components.ColorWhite)
@@ -73,6 +77,9 @@ func (m CommandInputModel) Update(msg tea.Msg) (CommandInputModel, tea.Cmd) {
 					WindowID: m.ID,
 					Title:    "Command Mode",
 				}
+			},
+			func() tea.Msg {
+				return messages.UpdatedHint(commandHintString)
 			},
 		)
 

@@ -12,7 +12,7 @@ import (
 
 var (
 	windowFocusedStyle = lipgloss.NewStyle().Foreground(components.ColorGreen)
-	windowDefaultStyle = lipgloss.NewStyle()
+	windowDefaultStyle = lipgloss.NewStyle().Foreground(components.ColorGrey)
 )
 
 type Model struct {

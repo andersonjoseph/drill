@@ -15,6 +15,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	hintString = "enter: select, j: down, k: up"
+)
+
 var (
 	noItemsStyle lipgloss.Style = lipgloss.NewStyle().Width(0).Foreground(components.ColorGrey)
 
@@ -76,8 +80,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			parentFocused:  m.IsFocused,
 			openedFilename: m.openedFilename,
 		})
+		if !m.IsFocused {
+			return m, nil
+		}
 
-		return m, nil
+		return m, func() tea.Msg {
+			return messages.UpdatedHint(hintString)
+		}
 
 	case tea.WindowSizeMsg:
 		m.height = msg.Height

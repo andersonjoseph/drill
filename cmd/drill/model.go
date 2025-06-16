@@ -3,7 +3,7 @@ package main
 import (
 	"strconv"
 
-	"github.com/andersonjoseph/drill/internal/components/alert"
+	"github.com/andersonjoseph/drill/internal/components/status"
 	"github.com/andersonjoseph/drill/internal/components/window"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
@@ -14,7 +14,7 @@ import (
 type model struct {
 	sourceCode       window.Model
 	output           window.Model
-	alert            alert.Model
+	status           status.Model
 	sidebar          []window.Model
 	debugger         *debugger.Debugger
 	logs             []string
@@ -76,7 +76,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.output, cmd = m.output.Update(msg)
 	cmds = append(cmds, cmd)
 
-	m.alert, cmd = m.alert.Update(msg)
+	m.status, cmd = m.status.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -101,7 +101,7 @@ func (m model) View() string {
 				),
 			),
 		),
-		m.alert.View(),
+		m.status.View(),
 	)
 }
 
@@ -123,7 +123,7 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 		sidebarWidth = maxSidebarWidth
 	}
 
-	sidebarAvailableHeight := msg.Height - 4 // e.g., 1px border per component
+	sidebarAvailableHeight := msg.Height - 2
 	sidebarComponentHeight := sidebarAvailableHeight / 3
 
 	// --- Main Panel Calculations (Source Code + Output) ---
@@ -132,7 +132,7 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 
 	// Let's give the source code 70% of the available vertical space
 	// and the output the remaining 30%.
-	sourceCodeHeight := int(float64(mainPanelAvailableHeight) * 0.8)
+	sourceCodeHeight := int(float64(mainPanelAvailableHeight) * 0.7)
 	outputHeight := mainPanelAvailableHeight - sourceCodeHeight
 
 	// --- Update all components with their new sizes ---
@@ -150,7 +150,7 @@ func (m *model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 	m.output, cmd = m.output.Update(tea.WindowSizeMsg{Width: mainPanelWidth, Height: outputHeight})
 	cmds = append(cmds, cmd)
 
-	m.alert, cmd = m.alert.Update(tea.WindowSizeMsg{Width: msg.Width - 2, Height: 1})
+	m.status, cmd = m.status.Update(tea.WindowSizeMsg{Width: msg.Width - 2, Height: 1})
 	cmds = append(cmds, cmd)
 
 	return tea.Batch(cmds...)

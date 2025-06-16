@@ -19,6 +19,7 @@ import (
 
 const (
 	breakpointSymbol = "⏺"
+	hintString       = "t: toggle, d: delete, enter: select, c: condition, r: alias, j: down, k: up"
 )
 
 var (
@@ -91,11 +92,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if !m.IsFocused {
 			m.list.Styles.PaginationStyle = paginatorStyleDefault
+			return m, nil
 		} else {
 			m.list.Styles.PaginationStyle = paginatorStyleFocused
 		}
 
-		return m, nil
+		return m, func() tea.Msg {
+			return messages.UpdatedHint(hintString)
+		}
 
 	case tea.WindowSizeMsg:
 		m.height = msg.Height

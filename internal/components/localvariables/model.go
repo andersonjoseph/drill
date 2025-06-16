@@ -13,6 +13,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	hintString       = "enter: inspect, j: down, k: up"
+	viewerHintString = "esc: close, j: down, k: up"
+)
+
 type variableStyle struct {
 	name  lipgloss.Style
 	value lipgloss.Style
@@ -93,7 +98,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.Styles.PaginationStyle = paginatorStyleFocused
 		}
 
-		return m, nil
+		return m, func() tea.Msg {
+			return messages.UpdatedHint(hintString)
+		}
 
 	case tea.WindowSizeMsg:
 		m.height = msg.Height
@@ -138,9 +145,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.variableViewer.setContent(lv.variable)
 			m.variableViewer.setIsOpen(true)
 
-			return m, func() tea.Msg {
-				return messages.WindowTitleChanged{WindowID: m.ID, Title: fmt.Sprintf("Inspecting %s", lv.variable.Name)}
-			}
+			return m, tea.Batch(
+				func() tea.Msg {
+					return messages.UpdatedHint(viewerHintString)
+				},
+				func() tea.Msg {
+					return messages.WindowTitleChanged{WindowID: m.ID, Title: fmt.Sprintf("Inspecting %s", lv.variable.Name)}
+				},
+			)
+
 		}
 
 		var cmd tea.Cmd

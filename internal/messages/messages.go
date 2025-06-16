@@ -51,6 +51,8 @@ type WindowTitleChanged struct {
 	Title    string
 }
 
+type UpdatedHint string
+
 func DebuggerBreakpointClearedCmd(id int, file string, line int) tea.Cmd {
 	return func() tea.Msg {
 		return DebuggerBreakpointCleared{ID: id, Line: line, Filename: file}

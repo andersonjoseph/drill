@@ -9,6 +9,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	hintString = "i: command mode, j: down, k: up"
+)
+
 var (
 	outputContentStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
 
@@ -64,7 +68,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.WindowFocused:
 		m.IsFocused = int(msg) == m.ID
-		return m, nil
+		if !m.IsFocused {
+			return m, nil
+		}
+
+		return m, func() tea.Msg {
+			return messages.UpdatedHint(hintString)
+		}
 
 	case messages.DebuggerRestarted:
 		m.content = ""
