@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
+	"github.com/andersonjoseph/drill/internal/paths"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
@@ -177,53 +177,6 @@ func (m *Model) updateContent() error {
 	return nil
 }
 
-func truncPath(path string, maxWidth int) string {
-	if len(path) <= maxWidth {
-		return path
-	}
-
-	dir, filename := filepath.Split(path)
-	if len(filename) >= maxWidth {
-		return filename
-	}
-
-	availableSpace := maxWidth - len(filename) - 3
-	if availableSpace <= 0 {
-		return filename
-	}
-
-	dirParts := strings.Split(strings.TrimSuffix(dir, string(filepath.Separator)), string(filepath.Separator))
-
-	var truncatedDir string
-
-	for i := len(dirParts) - 1; i >= 0; i-- {
-		nextPart := dirParts[i]
-		if i < len(dirParts)-1 {
-			nextPart += string(filepath.Separator)
-		}
-
-		if len(nextPart)+len(truncatedDir) > availableSpace {
-			if truncatedDir != "" {
-				break
-			}
-			if len(nextPart) > availableSpace {
-				truncatedDir = nextPart[len(nextPart)-availableSpace:]
-			} else {
-				truncatedDir = nextPart
-			}
-			break
-		}
-
-		truncatedDir = nextPart + truncatedDir
-	}
-
-	if truncatedDir != "" && !strings.HasSuffix(truncatedDir, string(filepath.Separator)) {
-		truncatedDir += string(filepath.Separator)
-	}
-
-	return "..." + truncatedDir + filename
-}
-
 type listDelegate struct {
 	parentFocused  bool
 	openedFilename string
@@ -266,7 +219,13 @@ func (i listItem) Render(width int) string {
 		functionName = "▶ " + functionName
 	}
 
-	truncatedFilename := style.Render(truncPath(i.frame.Filename, width-2))
+	displayPath := i.frame.Filename
+	if projectRoot := paths.GetProjectRoot(); projectRoot != "" {
+		if relPath, err := filepath.Rel(projectRoot, i.frame.Filename); err == nil {
+			displayPath = relPath
+		}
+	}
+	truncatedFilename := style.Render(paths.Trunc(displayPath, width-5))
 
 	item := fmt.Sprintf("%s\n %s:%s", functionName, truncatedFilename, line)
 

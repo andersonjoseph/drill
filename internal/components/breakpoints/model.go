@@ -4,13 +4,12 @@ import (
 	"cmp"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
+	"github.com/andersonjoseph/drill/internal/paths"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
@@ -322,53 +321,6 @@ func (m *Model) clearBreakpoint() (debugger.Breakpoint, error) {
 	return bp, nil
 }
 
-func truncPath(path string, maxWidth int) string {
-	if len(path) <= maxWidth {
-		return path
-	}
-
-	dir, filename := filepath.Split(path)
-	if len(filename) >= maxWidth {
-		return filename
-	}
-
-	availableSpace := maxWidth - len(filename) - 3
-	if availableSpace <= 0 {
-		return filename
-	}
-
-	dirParts := strings.Split(strings.TrimSuffix(dir, string(filepath.Separator)), string(filepath.Separator))
-
-	var truncatedDir string
-
-	for i := len(dirParts) - 1; i >= 0; i-- {
-		nextPart := dirParts[i]
-		if i < len(dirParts)-1 {
-			nextPart += string(filepath.Separator)
-		}
-
-		if len(nextPart)+len(truncatedDir) > availableSpace {
-			if truncatedDir != "" {
-				break
-			}
-			if len(nextPart) > availableSpace {
-				truncatedDir = nextPart[len(nextPart)-availableSpace:]
-			} else {
-				truncatedDir = nextPart
-			}
-			break
-		}
-
-		truncatedDir = nextPart + truncatedDir
-	}
-
-	if truncatedDir != "" && !strings.HasSuffix(truncatedDir, string(filepath.Separator)) {
-		truncatedDir += string(filepath.Separator)
-	}
-
-	return "..." + truncatedDir + filename
-}
-
 type listDelegate struct {
 	parentFocused bool
 }
@@ -399,7 +351,7 @@ func (i listItem) Render(width int) string {
 		indicator = indicatorEnabled
 	}
 
-	item := truncPath(i.breakpoint.Name, width-3)
+	item := paths.Trunc(i.breakpoint.Name, width-5)
 	if i.breakpoint.Condition != "" {
 		item += conditionStyle.Render("\n\twhen: " + i.breakpoint.Condition)
 	}
