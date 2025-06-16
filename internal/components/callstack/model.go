@@ -96,7 +96,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		return m, nil
 
-	case messages.RefreshContent, messages.DebuggerRestarted, messages.DebuggerStepped:
+	case messages.DebuggerStepped:
+		currentFile, _, err := m.debugger.CurrentFile()
+		if err != nil {
+			return m, messages.ErrorCmd(err)
+		}
+
+		if currentFile == m.openedFilename {
+			return m, nil
+		}
+
+		if err := m.updateContent(); err != nil {
+			return m, messages.ErrorCmd(err)
+		}
+
+		return m, nil
+
+	case messages.RefreshContent, messages.DebuggerRestarted:
 		if err := m.updateContent(); err != nil {
 			return m, func() tea.Msg {
 				return messages.Error(err)
