@@ -54,6 +54,7 @@ const (
 	SourceUnknown outputSource = iota
 	SourceStdout
 	SourceStderr
+	SourceCommand
 )
 
 type Output struct {
@@ -196,11 +197,7 @@ func (d Debugger) LocalVariables() ([]Variable, error) {
 
 	localVariables := make([]Variable, len(vars))
 	for i := range vars {
-		localVariables[i] = Variable{
-			Name:           vars[i].Name,
-			Value:          vars[i].SinglelineString(),
-			MultilineValue: vars[i].MultilineString(" ", "%#v"),
-		}
+		localVariables[i] = apiVarToInternalVar(vars[i])
 	}
 
 	return localVariables, nil
@@ -366,6 +363,24 @@ func (d Debugger) StepOut() error {
 	return nil
 }
 
+func (d Debugger) EvalVariable(expr string) (variable Variable, err error) {
+	state, err := d.client.GetState()
+	if err != nil {
+		return variable, fmt.Errorf("error getting current state: %w", err)
+	}
+
+	scope := api.EvalScope{
+		GoroutineID: state.CurrentThread.GoroutineID,
+	}
+
+	v, err := d.client.EvalVariable(scope, expr, d.lcfg)
+	if err != nil {
+		return variable, fmt.Errorf("error evaluating expression: %w", err)
+	}
+
+	return apiVarToInternalVar(*v), nil
+}
+
 func apiBpToInternalBp(bp api.Breakpoint) Breakpoint {
 	if bp.Name == "" {
 		bp.Name = fmt.Sprintf("%s:%d", bp.File, bp.Line)
@@ -378,5 +393,13 @@ func apiBpToInternalBp(bp api.Breakpoint) Breakpoint {
 		Filename:  bp.File,
 		Disabled:  bp.Disabled,
 		Condition: bp.Cond,
+	}
+}
+
+func apiVarToInternalVar(v api.Variable) Variable {
+	return Variable{
+		Name:           v.Name,
+		Value:          v.SinglelineString(),
+		MultilineValue: v.MultilineString(" ", "%#v"),
 	}
 }

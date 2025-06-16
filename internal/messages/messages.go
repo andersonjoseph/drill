@@ -39,6 +39,7 @@ type DebuggerBreakpointSelected struct {
 
 type DebuggerStdoutReceived string
 type DebuggerStderrReceived string
+type DebuggerCommandReceived string
 
 type FileRequested struct {
 	Filename string

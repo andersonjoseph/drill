@@ -12,26 +12,29 @@ import (
 var (
 	outputContentStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorWhite)
 
-	stdoutLabelStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
-	stderrLabelStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorOrange)
+	stdoutLabelStyle  lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorGrey)
+	stderrLabelStyle  lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorOrange)
+	commandLabelStyle lipgloss.Style = lipgloss.NewStyle().Foreground(components.ColorYellow)
 )
 
 type Model struct {
-	ID        int
-	IsFocused bool
-	content   string
-	width     int
-	height    int
-	viewport  viewport.Model
-	debugger  *debugger.Debugger
+	ID           int
+	IsFocused    bool
+	content      string
+	width        int
+	height       int
+	viewport     viewport.Model
+	commandInput CommandInputModel
+	debugger     *debugger.Debugger
 }
 
 func New(id int, title string, d *debugger.Debugger) Model {
 	m := Model{
-		ID:       id,
-		debugger: d,
-		content:  "",
-		viewport: viewport.New(30, 5),
+		ID:           id,
+		debugger:     d,
+		content:      "",
+		viewport:     viewport.New(30, 5),
+		commandInput: newCommandInputModel(id, d),
 	}
 
 	return m
@@ -40,10 +43,17 @@ func New(id int, title string, d *debugger.Debugger) Model {
 func waitForDebuggerOutput(c chan debugger.Output) tea.Cmd {
 	return func() tea.Msg {
 		o := <-c
-		if o.Source == debugger.SourceStderr {
+		switch o.Source {
+		case debugger.SourceStderr:
 			return messages.DebuggerStderrReceived(o.Content)
+		case debugger.SourceCommand:
+			return messages.DebuggerCommandReceived(o.Content)
+		case debugger.SourceStdout:
+			return messages.DebuggerStdoutReceived(o.Content)
+
+		default:
+			return nil
 		}
-		return messages.DebuggerStdoutReceived(o.Content)
 	}
 }
 
@@ -66,7 +76,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		label := stdoutLabelStyle.Render("[stdout] ")
 		m.content += "\n" + label + string(msg)
 		m.viewport.SetContent(m.content)
-		m.viewport.ScrollDown(1)
+		m.viewport.GotoBottom()
 
 		return m, waitForDebuggerOutput(m.debugger.Output)
 
@@ -74,7 +84,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		label := stderrLabelStyle.Render("[stderr] ")
 		m.content += "\n" + label + string(msg)
 		m.viewport.SetContent(m.content)
-		m.viewport.ScrollDown(1)
+		m.viewport.GotoBottom()
+
+		return m, waitForDebuggerOutput(m.debugger.Output)
+
+	case messages.DebuggerCommandReceived:
+		label := commandLabelStyle.Render("[command] ")
+		m.content += "\n" + label + string(msg)
+		m.viewport.SetContent(m.content)
+		m.viewport.GotoBottom()
 
 		return m, waitForDebuggerOutput(m.debugger.Output)
 
@@ -88,27 +106,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		var cmd tea.Cmd
+
 		if !m.IsFocused {
 			return m, nil
 		}
 
-		if msg.String() == "c" {
-			m.content = ""
-			m.viewport.SetContent(m.content)
-			return m, nil
+		if !m.commandInput.IsFocused && msg.String() == "i" {
+			m.commandInput, cmd = m.commandInput.Update(messages.WindowFocused(m.ID))
+			return m, cmd
 		}
 
-		var cmd tea.Cmd
-		var cmds []tea.Cmd
+		if m.commandInput.IsFocused {
+			m.commandInput, cmd = m.commandInput.Update(msg)
+			return m, cmd
+		}
 
 		m.viewport, cmd = m.viewport.Update(msg)
-		cmds = append(cmds, cmd)
 
-		return m, tea.Batch(cmds...)
+		return m, cmd
 	}
 	return m, nil
 }
 
 func (m Model) View() string {
-	return outputContentStyle.Render(m.viewport.View())
+	return lipgloss.JoinVertical(lipgloss.Top,
+		outputContentStyle.Render(m.viewport.View()),
+		m.commandInput.View(),
+	)
 }
