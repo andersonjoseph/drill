@@ -54,6 +54,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
+
+	case messages.DebuggerBreakpointSelected:
+		if msg.FromWindowID == m.ID {
+			return m, nil
+		}
+
+		m.viewport, cmd = m.viewport.Update(msg)
+
+		return m, tea.Batch(cmd, func() tea.Msg {
+			return messages.WindowFocused(m.ID)
+		})
 	}
 
 	m.viewport, cmd = m.viewport.Update(msg)
@@ -112,17 +123,15 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg.String() == "enter" {
-		id, err := m.selectBreakpoint()
+		bp, err := m.selectBreakpoint()
 		if err != nil {
 			return m, messages.ErrorCmd(err)
 		}
-		if id == 0 {
+		if bp.ID == 0 {
 			return m, nil
 		}
 
-		return m, func() tea.Msg {
-			return messages.BreakpointSelected(id)
-		}
+		return m, messages.DebuggerBreakpointSelectedCmd(bp.ID, bp.Filename, bp.Line, m.ID)
 	}
 
 	var cmd tea.Cmd
@@ -179,16 +188,16 @@ func (m Model) clearBreakpoint() tea.Cmd {
 	return messages.DebuggerBreakpointClearedCmd(bp.ID, bp.Filename, bp.Line)
 }
 
-func (m Model) selectBreakpoint() (int, error) {
+func (m Model) selectBreakpoint() (debugger.Breakpoint, error) {
 	bp, ok, err := m.currentBreakpoint()
 	if err != nil {
-		return 0, fmt.Errorf("error selecting breakpoint: %w", err)
+		return debugger.Breakpoint{}, fmt.Errorf("error selecting breakpoint: %w", err)
 	}
 	if !ok {
-		return 0, nil
+		return debugger.Breakpoint{}, nil
 	}
 
-	return bp.ID, nil
+	return bp, nil
 }
 
 func (m Model) currentBreakpoint() (debugger.Breakpoint, bool, error) {

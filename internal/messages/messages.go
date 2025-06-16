@@ -30,7 +30,12 @@ type DebuggerBreakpointCleared struct {
 	Line     int
 }
 
-type BreakpointSelected int
+type DebuggerBreakpointSelected struct {
+	ID           int
+	Filename     string
+	Line         int
+	FromWindowID int
+}
 
 type DebuggerStdoutReceived string
 type DebuggerStderrReceived string
@@ -60,6 +65,12 @@ func DebuggerBreakpointToggledCmd(id int, file string, line int) tea.Cmd {
 func DebuggerBreakpointCreatedCmd(id int, file string, line int) tea.Cmd {
 	return func() tea.Msg {
 		return DebuggerBreakpointCreated{ID: id, Line: line, Filename: file}
+	}
+}
+
+func DebuggerBreakpointSelectedCmd(id int, file string, line int, fromWindowID int) tea.Cmd {
+	return func() tea.Msg {
+		return DebuggerBreakpointSelected{ID: id, Filename: file, Line: line, FromWindowID: fromWindowID}
 	}
 }
 

@@ -69,7 +69,6 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 			if err := m.openFile(filename, line); err != nil {
 				return m, messages.ErrorCmd(fmt.Errorf("error refreshing content: could not get current file: %w", err))
 			}
-			m.centerCursor()
 		}
 
 		oldArrowLineNumber := m.arrowLineNumber
@@ -91,15 +90,12 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 		if err := m.openFile(filename, line); err != nil {
 			return m, messages.ErrorCmd(fmt.Errorf("error refreshing content: could not get current file: %w", err))
 		}
-
-		m.centerCursor()
 		return m, nil
 
 	case messages.FileRequested:
 		if err := m.openFile(msg.Filename, msg.Line); err != nil {
 			return m, messages.ErrorCmd(fmt.Errorf("error handling file requested: %w", err))
 		}
-		m.centerCursor()
 		return m, nil
 
 	case messages.DebuggerBreakpointCreated:
@@ -144,6 +140,15 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 
 		m.viewport.Height = m.height
 		m.viewport.Width = m.width
+		m.centerCursor()
+		return m, nil
+
+	case messages.DebuggerBreakpointSelected:
+		if msg.Filename != m.filename {
+			m.openFile(msg.Filename, msg.Line)
+			return m, nil
+		}
+		m.setCursor(msg.Line)
 		m.centerCursor()
 		return m, nil
 
@@ -300,6 +305,7 @@ func (m *viewportWithCursorModel) openFile(filename string, line int) error {
 	}
 
 	m.viewport.SetContent(strings.Join(m.formattedContent, "\n"))
+	m.centerCursor()
 	return nil
 }
 

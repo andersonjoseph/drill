@@ -135,10 +135,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 
-	case messages.BreakpointSelected:
+	case messages.DebuggerBreakpointSelected:
+		if msg.FromWindowID == m.ID {
+			return m, nil
+		}
+
 		for i, item := range m.list.Items() {
 			item := item.(listItem)
-			if item.breakpoint.ID == int(msg) {
+			if item.breakpoint.ID == int(msg.ID) {
 				m.list.Select(i)
 				return m, func() tea.Msg {
 					return messages.WindowFocused(m.ID)
@@ -185,13 +189,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.list.SelectedItem() == nil {
 				return m, nil
 			}
-			bp := m.list.SelectedItem().(listItem)
+			item := m.list.SelectedItem().(listItem)
 
 			m.conditionInput.setFocus(true)
-			m.conditionInput.setContent(bp.breakpoint.Condition)
+			m.conditionInput.setContent(item.breakpoint.Condition)
 			return m, func() tea.Msg {
 				return messages.TextInputFocused(true)
 			}
+		}
+
+		if msg.String() == "enter" {
+			if m.list.SelectedItem() == nil {
+				return m, nil
+			}
+
+			item := m.list.SelectedItem().(listItem)
+			return m, messages.DebuggerBreakpointSelectedCmd(
+				item.breakpoint.ID,
+				item.breakpoint.Filename,
+				item.breakpoint.Line,
+				m.ID,
+			)
 		}
 
 		m.list, cmd = m.list.Update(msg)
