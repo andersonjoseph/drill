@@ -2,17 +2,14 @@ package sourcecode
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
-	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/andersonjoseph/drill/internal/components"
 	"github.com/andersonjoseph/drill/internal/debugger"
 	"github.com/andersonjoseph/drill/internal/messages"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hashicorp/golang-lru/v2"
 )
 
 const (
@@ -40,22 +37,18 @@ type viewportWithCursorModel struct {
 	filename         string
 	content          []string
 	formattedContent []string
-	contentCache     *lru.Cache[string, []string]
 	breakpoints      map[int]debugger.Breakpoint
 	debugger         *debugger.Debugger
 	viewport         viewport.Model
+	contentManager   contentManager
 }
 
 func newViewportWithCursor(debugger *debugger.Debugger) viewportWithCursorModel {
-	contentCache, err := lru.New[string, []string](5)
-	if err != nil {
-		panic(err)
-	}
 	return viewportWithCursorModel{
-		cursor:       1,
-		viewport:     viewport.New(0, 0),
-		debugger:     debugger,
-		contentCache: contentCache,
+		cursor:         1,
+		viewport:       viewport.New(0, 0),
+		debugger:       debugger,
+		contentManager: newContentManager(),
 	}
 }
 
@@ -279,21 +272,11 @@ func (m *viewportWithCursorModel) ensureCursorVisible() {
 func (m *viewportWithCursorModel) openFile(filename string, line int) error {
 	m.filename = filename
 	m.cursor = line
-	if content, ok := m.contentCache.Get(filename); ok {
-		m.content = content
-	} else {
-		content, err := m.readFile(filename)
-		if err != nil {
-			return fmt.Errorf("error opening file: could not read file: %w", err)
-		}
-
-		content, err = colorize(content)
-		if err != nil {
-			return fmt.Errorf("error opening file: could not colorize content: %w", err)
-		}
-		m.content = strings.Split(strings.TrimSpace(content), "\n")
-		m.contentCache.Add(filename, m.content)
+	content, err := m.contentManager.getSourceCode(filename)
+	if err != nil {
+		return fmt.Errorf("error opening file: could not read file: %w", err)
 	}
+	m.content = content
 
 	breakpointsInFile, err := m.debugger.FileBreakpoints(m.filename)
 	if err != nil {
@@ -318,26 +301,6 @@ func (m *viewportWithCursorModel) openFile(filename string, line int) error {
 
 	m.viewport.SetContent(strings.Join(m.formattedContent, "\n"))
 	return nil
-}
-
-func (m *viewportWithCursorModel) readFile(filename string) (string, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return "", fmt.Errorf("error getting current file content: error opening file: %s: %v", filename, err)
-	}
-
-	return string(content), nil
-}
-
-func colorize(content string) (string, error) {
-	sb := strings.Builder{}
-
-	err := quick.Highlight(&sb, content, "go", "terminal8", "native")
-	if err != nil {
-		return "", fmt.Errorf("error highlighting the source code: %w", err)
-	}
-
-	return sb.String(), nil
 }
 
 func (m viewportWithCursorModel) CurrentLineNumber() int {
