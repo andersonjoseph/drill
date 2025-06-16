@@ -1,9 +1,11 @@
 package breakpoints
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/andersonjoseph/drill/internal/components"
@@ -36,18 +38,19 @@ var (
 )
 
 type Model struct {
-	ID             int
-	title          string
-	IsFocused      bool
-	width          int
-	height         int
-	list           list.Model
-	debugger       *debugger.Debugger
-	conditionInput conditionInputModel
-	aliasInput     aliasInputModel
+	ID              int
+	title           string
+	IsFocused       bool
+	width           int
+	height          int
+	list            list.Model
+	debugger        *debugger.Debugger
+	conditionInput  conditionInputModel
+	aliasInput      aliasInputModel
+	idToBreakpoints map[int]debugger.Breakpoint
 }
 
-func New(id int, debugger *debugger.Debugger) Model {
+func New(id int, d *debugger.Debugger) Model {
 	l := list.New([]list.Item{}, listDelegate{}, 0, 0)
 	l.SetShowHelp(false)
 	l.SetShowFilter(false)
@@ -68,12 +71,13 @@ func New(id int, debugger *debugger.Debugger) Model {
 	l.Paginator = p
 
 	return Model{
-		ID:             id,
-		title:          "Breakpoints",
-		list:           l,
-		debugger:       debugger,
-		conditionInput: newConditionInputModel(id),
-		aliasInput:     newAliasInputModel(id),
+		ID:              id,
+		title:           "Breakpoints",
+		list:            l,
+		debugger:        d,
+		conditionInput:  newConditionInputModel(id),
+		aliasInput:      newAliasInputModel(id),
+		idToBreakpoints: make(map[int]debugger.Breakpoint),
 	}
 }
 
@@ -104,54 +108,60 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.aliasInput, _ = m.aliasInput.Update(tea.WindowSizeMsg{Width: m.width})
 		return m, nil
 
-	case
-		messages.RefreshContent,
-		messages.DebuggerRestarted,
-		messages.DebuggerBreakpointCreated,
-		messages.DebuggerBreakpointToggled,
-		messages.DebuggerBreakpointCleared:
-
-		if err := m.updateContent(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
+	case messages.RefreshContent, messages.DebuggerRestarted:
+		if err := m.syncBreakpoints(); err != nil {
+			return m, messages.ErrorCmd(err)
 		}
+		return m, nil
 
+	case messages.DebuggerBreakpointCreated:
+		bp, err := m.debugger.Breakpoint(msg.ID)
+		if err != nil {
+			return m, messages.ErrorCmd(fmt.Errorf("error getting breakpoint: %w", err))
+		}
+		m.idToBreakpoints[msg.ID] = bp
+
+		m.list.SetItems(breakpointsToListItems(m.idToBreakpoints))
+		return m, nil
+
+	case messages.DebuggerBreakpointToggled:
+		bp := m.idToBreakpoints[msg.ID]
+
+		bp.Disabled = !bp.Disabled
+		m.idToBreakpoints[msg.ID] = bp
+
+		m.list.SetItems(breakpointsToListItems(m.idToBreakpoints))
+		return m, nil
+
+	case messages.DebuggerBreakpointCleared:
+		delete(m.idToBreakpoints, msg.ID)
+
+		m.list.SetItems(breakpointsToListItems(m.idToBreakpoints))
 		return m, nil
 
 	case messageNewCondition:
-		bp := m.list.SelectedItem().(listItem)
-		_, err := m.debugger.AddConditionToBreakpoint(bp.breakpoint.ID, string(msg))
+		item := m.list.SelectedItem().(listItem)
 
+		bp, err := m.debugger.AddConditionToBreakpoint(item.breakpoint.ID, string(msg))
 		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
+			return m, messages.ErrorCmd(err)
 		}
 
-		if err := m.updateContent(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
-		}
+		m.idToBreakpoints[bp.ID] = bp
 
+		m.list.SetItems(breakpointsToListItems(m.idToBreakpoints))
 		return m, nil
 
 	case messageNewAlias:
-		bp := m.list.SelectedItem().(listItem)
-		_, err := m.debugger.AddAliasToBreakpoint(bp.breakpoint.ID, string(msg))
+		item := m.list.SelectedItem().(listItem)
+
+		bp, err := m.debugger.AddAliasToBreakpoint(item.breakpoint.ID, string(msg))
 		if err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
+			return m, messages.ErrorCmd(err)
 		}
 
-		if err := m.updateContent(); err != nil {
-			return m, func() tea.Msg {
-				return messages.Error(err)
-			}
-		}
-
+		m.idToBreakpoints[bp.ID] = bp
+		m.list.SetItems(breakpointsToListItems(m.idToBreakpoints))
 		return m, nil
 
 	case messages.DebuggerBreakpointSelected:
@@ -190,9 +200,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "t" {
 			bp, err := m.toggleBreakpoint()
 			if err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(err)
-				}
+				return m, messages.ErrorCmd(err)
 			}
 
 			return m, messages.DebuggerBreakpointToggledCmd(bp.ID, bp.Filename, bp.Line)
@@ -201,9 +209,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "d" {
 			bp, err := m.clearBreakpoint()
 			if err != nil {
-				return m, func() tea.Msg {
-					return messages.Error(err)
-				}
+				return m, messages.ErrorCmd(err)
 			}
 
 			return m, messages.DebuggerBreakpointClearedCmd(bp.ID, bp.Filename, bp.Line)
@@ -268,13 +274,20 @@ func (m Model) View() string {
 	return m.list.View()
 }
 
-func (m *Model) updateContent() error {
+func (m *Model) syncBreakpoints() error {
 	bps, err := m.debugger.Breakpoints()
 	if err != nil {
 		return fmt.Errorf("erorr updating content: %w", err)
 	}
 
-	m.list.SetItems(breakpointsToListItems(bps))
+	m.idToBreakpoints = make(map[int]debugger.Breakpoint, len(bps))
+	for _, bp := range bps {
+		if _, ok := m.idToBreakpoints[bp.ID]; !ok {
+			m.idToBreakpoints[bp.ID] = bp
+		}
+	}
+
+	m.list.SetItems(breakpointsToListItems(m.idToBreakpoints))
 	return nil
 }
 
@@ -284,7 +297,10 @@ func (m *Model) toggleBreakpoint() (debugger.Breakpoint, error) {
 		return debugger.Breakpoint{}, nil
 	}
 	bp := i.(listItem).breakpoint
-	m.debugger.ToggleBreakpoint(bp.ID)
+	err := m.debugger.ToggleBreakpoint(bp.ID)
+	if err != nil {
+		return debugger.Breakpoint{}, err
+	}
 	return bp, nil
 }
 
@@ -294,7 +310,10 @@ func (m *Model) clearBreakpoint() (debugger.Breakpoint, error) {
 		return debugger.Breakpoint{}, nil
 	}
 	bp := i.(listItem).breakpoint
-	m.debugger.ClearBreakpoint(bp.ID)
+	err := m.debugger.ClearBreakpoint(bp.ID)
+	if err != nil {
+		return debugger.Breakpoint{}, err
+	}
 
 	return bp, nil
 }
@@ -396,14 +415,15 @@ func (i listItem) Render(width int) string {
 		Render(breakpoint)
 }
 
-func breakpointsToListItems(bps []debugger.Breakpoint) []list.Item {
-	items := make([]list.Item, len(bps))
-
-	for i := range bps {
-		items[i] = listItem{
-			breakpoint: bps[i],
-		}
+func breakpointsToListItems(bps map[int]debugger.Breakpoint) []list.Item {
+	items := make([]list.Item, 0, len(bps))
+	for _, bp := range bps {
+		items = append(items, listItem{breakpoint: bp})
 	}
+
+	slices.SortFunc(items, func(a, b list.Item) int {
+		return cmp.Compare(a.(listItem).breakpoint.ID, b.(listItem).breakpoint.ID)
+	})
 
 	return items
 }
