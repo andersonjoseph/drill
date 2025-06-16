@@ -170,7 +170,7 @@ func (d Debugger) Breakpoint(id int) (Breakpoint, error) {
 		return Breakpoint{}, fmt.Errorf("error getting breakpoint: %w", err)
 	}
 
-	return apiBpToInternalBp(bp), nil
+	return apiBpToInternalBp(*bp), nil
 }
 
 func (d Debugger) LocalVariables() ([]Variable, error) {
@@ -239,7 +239,7 @@ func (d Debugger) Breakpoints() ([]Breakpoint, error) {
 
 	breakpoints := make([]Breakpoint, len(bps))
 	for i := range bps {
-		breakpoints[i] = apiBpToInternalBp(bps[i])
+		breakpoints[i] = apiBpToInternalBp(*bps[i])
 	}
 
 	return breakpoints, nil
@@ -254,7 +254,7 @@ func (d Debugger) CreateBreakpoint(filename string, line int) (Breakpoint, error
 		return Breakpoint{}, fmt.Errorf("error creating breakpoint: %w", err)
 	}
 
-	return apiBpToInternalBp(bp), nil
+	return apiBpToInternalBp(*bp), nil
 }
 
 func (d Debugger) CreateBreakpointNow() (Breakpoint, error) {
@@ -279,7 +279,22 @@ func (d Debugger) AddConditionToBreakpoint(id int, cond string) (Breakpoint, err
 		return Breakpoint{}, fmt.Errorf("error adding condition to breakpoint: amend breakpoint: %w", err)
 	}
 
-	return apiBpToInternalBp(bp), nil
+	return apiBpToInternalBp(*bp), nil
+}
+
+func (d Debugger) AddAliasToBreakpoint(id int, alias string) (Breakpoint, error) {
+	bp, err := d.client.GetBreakpoint(id)
+	if err != nil {
+		return Breakpoint{}, fmt.Errorf("error adding alias to breakpoint: getting breakpoint: %w", err)
+	}
+
+	bp.Name = alias
+	err = d.client.AmendBreakpoint(bp)
+	if err != nil {
+		return Breakpoint{}, fmt.Errorf("error adding alias to breakpoint: amend breakpoint: %w", err)
+	}
+
+	return apiBpToInternalBp(*bp), nil
 }
 
 func (d Debugger) ToggleBreakpoint(id int) error {
@@ -351,10 +366,14 @@ func (d Debugger) StepOut() error {
 	return nil
 }
 
-func apiBpToInternalBp(bp *api.Breakpoint) Breakpoint {
+func apiBpToInternalBp(bp api.Breakpoint) Breakpoint {
+	if bp.Name == "" {
+		bp.Name = fmt.Sprintf("%s:%d", bp.File, bp.Line)
+	}
+
 	return Breakpoint{
 		ID:        bp.ID,
-		Name:      fmt.Sprintf("%s:%d", bp.File, bp.Line),
+		Name:      bp.Name,
 		Line:      bp.Line,
 		Filename:  bp.File,
 		Disabled:  bp.Disabled,

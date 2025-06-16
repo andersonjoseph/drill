@@ -44,6 +44,7 @@ type Model struct {
 	list           list.Model
 	debugger       *debugger.Debugger
 	conditionInput conditionInputModel
+	aliasInput     aliasInputModel
 }
 
 func New(id int, debugger *debugger.Debugger) Model {
@@ -72,6 +73,7 @@ func New(id int, debugger *debugger.Debugger) Model {
 		list:           l,
 		debugger:       debugger,
 		conditionInput: newConditionInputModel(id),
+		aliasInput:     newAliasInputModel(id),
 	}
 }
 
@@ -99,6 +101,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.Styles.NoItems = noItemsStyle.Width(msg.Width)
 
 		m.conditionInput, _ = m.conditionInput.Update(tea.WindowSizeMsg{Width: m.width})
+		m.aliasInput, _ = m.aliasInput.Update(tea.WindowSizeMsg{Width: m.width})
 		return m, nil
 
 	case
@@ -117,7 +120,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case messageNewCondition:
-		var cmd tea.Cmd
 		bp := m.list.SelectedItem().(listItem)
 		_, err := m.debugger.AddConditionToBreakpoint(bp.breakpoint.ID, string(msg))
 
@@ -133,7 +135,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		return m, cmd
+		return m, nil
+
+	case messageNewAlias:
+		bp := m.list.SelectedItem().(listItem)
+		_, err := m.debugger.AddAliasToBreakpoint(bp.breakpoint.ID, string(msg))
+		if err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(err)
+			}
+		}
+
+		if err := m.updateContent(); err != nil {
+			return m, func() tea.Msg {
+				return messages.Error(err)
+			}
+		}
+
+		return m, nil
 
 	case messages.DebuggerBreakpointSelected:
 		if msg.FromWindowID == m.ID {
@@ -156,6 +175,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		if m.conditionInput.isFocused {
 			m.conditionInput, cmd = m.conditionInput.Update(msg)
+			return m, cmd
+		}
+
+		if m.aliasInput.isFocused {
+			m.aliasInput, cmd = m.aliasInput.Update(msg)
 			return m, cmd
 		}
 
@@ -198,6 +222,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if msg.String() == "r" {
+			if m.list.SelectedItem() == nil {
+				return m, nil
+			}
+
+			item := m.list.SelectedItem().(listItem)
+
+			m.aliasInput.setFocus(true)
+			m.aliasInput.setContent(item.breakpoint.Name)
+			return m, func() tea.Msg {
+				return messages.TextInputFocused(true)
+			}
+		}
+
 		if msg.String() == "enter" {
 			if m.list.SelectedItem() == nil {
 				return m, nil
@@ -223,6 +261,10 @@ func (m Model) View() string {
 	if m.conditionInput.isFocused {
 		return m.conditionInput.View()
 	}
+	if m.aliasInput.isFocused {
+		return m.aliasInput.View()
+	}
+
 	return m.list.View()
 }
 
