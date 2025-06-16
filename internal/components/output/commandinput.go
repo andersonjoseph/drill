@@ -26,21 +26,25 @@ type CommandInputModel struct {
 	IsFocused bool
 	textInput textinput.Model
 	debugger  *debugger.Debugger
+
+	history    []string
+	historyPos int
 }
 
 func newCommandInputModel(id int, d *debugger.Debugger) CommandInputModel {
 	ti := textinput.New()
 	ti.Placeholder = "command..."
-	ti.CharLimit = 256
-	ti.Width = 80
 	ti.Prompt = "> "
+	ti.Width = 80
 	ti.PromptStyle = promptStyle
 
 	return CommandInputModel{
-		ID:        id,
-		IsFocused: false,
-		textInput: ti,
-		debugger:  d,
+		ID:         id,
+		IsFocused:  false,
+		textInput:  ti,
+		debugger:   d,
+		history:    make([]string, 0, 1000),
+		historyPos: 0,
 	}
 }
 
@@ -84,6 +88,9 @@ func (m CommandInputModel) Update(msg tea.Msg) (CommandInputModel, tea.Cmd) {
 				return m, nil
 			}
 
+			m.history = append(m.history, input)
+			m.historyPos = len(m.history)
+
 			parts := strings.Fields(input)
 			command, args := parts[0], parts[1:]
 
@@ -93,11 +100,37 @@ func (m CommandInputModel) Update(msg tea.Msg) (CommandInputModel, tea.Cmd) {
 			case "print", "p":
 				if err := m.commandPrint(input, args); err != nil {
 					m.sendOutput(errorStyle.Render(err.Error()))
-					return m, nil
 				}
-
 			default:
-				m.sendOutput(errorStyle.Render(fmt.Sprintf("Error: unrecognized command '%s'", command)))
+				m.sendOutput(
+					errorStyle.Render(
+						fmt.Sprintf("Error: unrecognized command '%s'", command),
+					),
+				)
+			}
+			return m, nil
+
+		case tea.KeyUp:
+			if len(m.history) > 0 {
+				m.historyPos--
+				if m.historyPos < 0 {
+					m.historyPos = 0
+				}
+				m.textInput.SetValue(m.history[m.historyPos])
+				m.textInput.SetCursor(len(m.textInput.Value()))
+			}
+			return m, nil
+
+		case tea.KeyDown:
+			if len(m.history) > 0 {
+				m.historyPos++
+				if m.historyPos >= len(m.history) {
+					m.historyPos = len(m.history)
+					m.textInput.SetValue("")
+				} else {
+					m.textInput.SetValue(m.history[m.historyPos])
+					m.textInput.SetCursor(len(m.textInput.Value()))
+				}
 			}
 			return m, nil
 
@@ -124,10 +157,10 @@ func (m CommandInputModel) Update(msg tea.Msg) (CommandInputModel, tea.Cmd) {
 
 func (m CommandInputModel) commandPrint(input string, args []string) error {
 	if len(args) == 0 {
-		return errors.New("print command requires an argument")
+		return errors.New("error: 'print' command requires an argument")
 	}
 
-	expr := strings.Join(args, "")
+	expr := strings.Join(args, " ")
 	v, err := m.debugger.EvalVariable(expr)
 	if err != nil {
 		return err
@@ -139,7 +172,7 @@ func (m CommandInputModel) commandPrint(input string, args []string) error {
 	}
 
 	m.sendOutput(fmt.Sprintf(
-		"%s \n%s",
+		"%s\n%s",
 		commandStyle.Render(input),
 		colorizedValue,
 	))
