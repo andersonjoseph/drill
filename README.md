@@ -1,5 +1,7 @@
 # Drill
 
+![Drill](https://raw.githubusercontent.com/andersonjoseph/drill/refs/heads/main/drill-gopher.png)
+
 Drill is a terminal-based debugger designed to provide a lightweight and simple debugging experience. While it is not yet stable and lacks many features found in full-featured debuggers, Drill has been a great alternative to print debugging and fits seamlessly into my workflows (terminal-based tools)
 
 ---
