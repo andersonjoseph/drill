@@ -14,7 +14,6 @@ import (
 	"github.com/andersonjoseph/drill/internal/components/sourcecode"
 	"github.com/andersonjoseph/drill/internal/components/window"
 	"github.com/andersonjoseph/drill/internal/debugger"
-	"github.com/andersonjoseph/drill/internal/messages"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -29,16 +28,16 @@ func parseEntryBreakpoint(bp string) (string, int, error) {
 
 func main() {
 	var bp string
-	var autoContinue bool
+	var command string
 	var filename string
 
 	flag.StringVar(&filename, "f", "", "filename")
 	flag.StringVar(&bp, "b", "", "create a breakpoint")
-	flag.BoolVar(&autoContinue, "c", false, "auto continue to the first breakpoint")
+	flag.StringVar(&command, "c", "debug", "dlv command to run")
 
 	flag.Parse()
 
-	debugger, err := debugger.New(filename)
+	debugger, err := debugger.New(command, filename)
 	if err != nil {
 		fmt.Println("Error creating debugger", err)
 		os.Exit(1)
@@ -74,10 +73,6 @@ func main() {
 		if err != nil {
 			fmt.Println("Error parsing breakpoint:", err)
 			os.Exit(1)
-		}
-		if autoContinue {
-			debugger.Continue()
-			m.Update(messages.RefreshContent{})
 		}
 	}
 

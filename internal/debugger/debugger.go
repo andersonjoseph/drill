@@ -70,7 +70,7 @@ type Debugger struct {
 	isReady bool
 }
 
-func New(filename string) (*Debugger, error) {
+func New(command, filename string) (*Debugger, error) {
 	d := &Debugger{
 		ready:  make(chan string),
 		Output: make(chan Output),
@@ -82,7 +82,9 @@ func New(filename string) (*Debugger, error) {
 			MaxStructFields:    32,
 		},
 	}
-	d.startProcess(filename)
+	if err := d.startProcess(command, filename); err != nil {
+		return nil, fmt.Errorf("error starting debugger process: %w", err)
+	}
 
 	select {
 	case addr := <-d.ready:
@@ -94,8 +96,10 @@ func New(filename string) (*Debugger, error) {
 	return d, nil
 }
 
-func (d *Debugger) startProcess(filename string) error {
-	cmd := exec.Command("dlv", "debug", "--headless", filename)
+func (d *Debugger) startProcess(command, filename string) error {
+	cmd := exec.Command("dlv", command, filename, "--headless")
+
+	fmt.Printf("cmd.String(): %v\n", cmd.String())
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
