@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 )
 
 func main() {
@@ -16,9 +15,6 @@ func main() {
 		y = y - 1
 		fmt.Printf("i=%d, x=%d, y=%d\n", i, x, y)
 	}
-
-	os.Stderr.WriteString("this is a stderr message")
-	os.Stdout.WriteString("this is a stdout message")
 
 	// Simple condition
 	if x > 15 {

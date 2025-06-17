@@ -69,6 +69,11 @@ func (m viewportWithCursorModel) Update(msg tea.Msg) (viewportWithCursorModel, t
 			if err := m.openFile(filename, line); err != nil {
 				return m, messages.ErrorCmd(fmt.Errorf("error refreshing content: could not get current file: %w", err))
 			}
+			return m, nil
+		}
+
+		if m.arrowLineNumber >= len(m.content) {
+			m.arrowLineNumber = line
 		}
 
 		oldArrowLineNumber := m.arrowLineNumber
