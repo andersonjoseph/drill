@@ -32,14 +32,15 @@ var (
 )
 
 type Model struct {
-	ID             int
-	title          string
-	IsFocused      bool
-	width          int
-	height         int
-	list           list.Model
-	debugger       *debugger.Debugger
-	openedFilename string
+	ID           int
+	title        string
+	IsFocused    bool
+	width        int
+	height       int
+	list         list.Model
+	debugger     *debugger.Debugger
+	openFilename string
+	lineNumber   int
 }
 
 func New(id int, debugger *debugger.Debugger) Model {
@@ -78,7 +79,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.IsFocused = int(msg) == m.ID
 		m.list.SetDelegate(listDelegate{
 			parentFocused:  m.IsFocused,
-			openedFilename: m.openedFilename,
+			openedFilename: m.openFilename,
 		})
 		if !m.IsFocused {
 			return m, nil
@@ -98,20 +99,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case messages.FileRequested:
-		m.openedFilename = msg.Filename
+		m.openFilename = msg.Filename
 		m.list.SetDelegate(listDelegate{
 			parentFocused:  m.IsFocused,
-			openedFilename: m.openedFilename,
+			openedFilename: m.openFilename,
 		})
 		return m, nil
 
 	case messages.DebuggerStepped:
-		currentFile, _, err := m.debugger.CurrentFile()
+		currentFile, line, err := m.debugger.CurrentFile()
 		if err != nil {
 			return m, messages.ErrorCmd(err)
 		}
 
-		if currentFile == m.openedFilename {
+		if currentFile == m.openFilename && line == m.lineNumber {
 			return m, nil
 		}
 
@@ -166,11 +167,12 @@ func (m *Model) updateContent() error {
 		return fmt.Errorf("erorr updating content: %w", err)
 	}
 
-	m.openedFilename = stack[0].Filename
+	m.openFilename = stack[0].Filename
+	m.lineNumber = stack[0].Line
 
 	m.list.SetDelegate(listDelegate{
 		parentFocused:  m.IsFocused,
-		openedFilename: m.openedFilename,
+		openedFilename: m.openFilename,
 	})
 
 	m.list.SetItems(stackToListItems(stack))
